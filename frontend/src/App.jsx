@@ -74,7 +74,7 @@ function App() {
 
   const calcularRendimiento = async () => {
     if (!datosMapa) {
-      alert("Por favor, dibuja primero una zona o un cable en el mapa.");
+      alert("Por favor, traza primero el recorrido del cable en el mapa.");
       return;
     }
 
@@ -240,7 +240,7 @@ function App() {
 
           <div className="estado-mapa">
             {datosMapa ? (
-              <p className="ok"> {datosMapa.tipo} listo para analizar</p>
+              <p className="ok"> Trazado listo para analizar</p>
             ) : (
               <p className="espera"> Esperando dibujo en el mapa...</p>
             )}

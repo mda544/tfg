@@ -121,10 +121,11 @@ def calcular_ampacidad(diametro_mm, res_ohm_km, emisividad, t_max_c, t_amb_c, ve
 @app.post("/calcular")
 async def calcular_rendimiento(datos: DatosEntrada):
     try:
-        if datos.tipo == 'Line':
-            coordenadas_linea = datos.coordenadas
-        else:
-            coordenadas_linea = datos.coordenadas[0] # Es un polígono
+        # Verificamos que solo nos lleguen líneas (cables)
+        if datos.tipo != 'Line':
+            return {"status": "error", "mensaje": "Por favor, dibuja solo una línea (cable) en el mapa, no polígonos."}
+            
+        coordenadas_linea = datos.coordenadas
 
         lat_centro = coordenadas_linea[0]['lat']
         lon_centro = coordenadas_linea[0]['lng']

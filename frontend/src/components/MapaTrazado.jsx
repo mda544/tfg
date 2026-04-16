@@ -31,6 +31,7 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
         drawText: false,
         drawCircle: false,
         drawRectangle: false,
+        drawPolygon: false,
         editMode: true,
         dragMode: true,
         cutPolygon: false,
