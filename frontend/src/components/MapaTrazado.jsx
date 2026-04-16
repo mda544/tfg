@@ -15,7 +15,7 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// Le pasamos dos funciones: una para crear y otra para borrar
+// Dos funciones: una para crear y otra para borrar
 const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
   const map = useMap();
 
@@ -23,7 +23,7 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
     if (!map) return;
 
     if (map.pm) {
-      // 1. Añadir barra de controles
+      // Añadir barra de controles
       map.pm.addControls({
         position: "topleft",
         drawMarker: false,
@@ -34,10 +34,10 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
         editMode: true,
         dragMode: true,
         cutPolygon: false,
-        removalMode: true, // Esto activa el botón de la papelera
+        removalMode: true, // Botón de la papelera
       });
 
-      // 2. Escuchar cuando SE CREA una figura
+      // Escuchar cuando se crea una figura
       map.on("pm:create", (e) => {
         const layer = e.layer;
         const tipo = e.shape;
@@ -46,7 +46,7 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
         onDibujoCreado({ tipo, coordenadas, layerId: L.stamp(layer) });
       });
 
-      // 3. Escuchar cuando SE BORRA una figura con la papelera
+      // Escuchar cuando se borra una figura con la papelera
       map.on("pm:remove", (e) => {
         const tipo = e.shape; // Nos dice si borró 'Polygon' o 'Line'
         onDibujoBorrado(tipo);
@@ -66,7 +66,7 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
 };
 
 const MapaTrazado = ({ onDatosDibujados, onDatosBorrados }) => {
-  const centroInicial = [40.4168, -3.7038];
+  const centroInicial = [40.4168, -3.7038]; // Centro Madrid
 
   return (
     <div

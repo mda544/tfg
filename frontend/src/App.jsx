@@ -69,7 +69,7 @@ function App() {
     setConfigCable((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Comprobamos si hay AL MENOS UN error en todo el formulario para bloquear el botón
+  // Si hay AL MENOS UN error en todo el formulario se bloquea el botón
   const hayErrores = Object.values(errores).some((error) => error !== "");
 
   const calcularRendimiento = async () => {
@@ -79,7 +79,7 @@ function App() {
     }
 
     try {
-      console.log("Preparando paquete para el servicio API...");
+      //console.log("Preparando paquete para el servicio API...");
 
       // Empaquetamos los datos
       const paqueteDatos = {
@@ -115,7 +115,7 @@ function App() {
         <aside className="panel-configuracion">
           <h2>Ficha Técnica del Cable</h2>
 
-          {/* DUAL INPUT: Slider + Box */}
+          {/* Slider + Box */}
           <div className="grupo-input">
             <label>Diámetro Exterior (mm)</label>
             <div className="controles-duales">
@@ -240,9 +240,9 @@ function App() {
 
           <div className="estado-mapa">
             {datosMapa ? (
-              <p className="ok">✅ {datosMapa.tipo} listo para analizar</p>
+              <p className="ok"> {datosMapa.tipo} listo para analizar</p>
             ) : (
-              <p className="espera">⏳ Esperando dibujo en el mapa...</p>
+              <p className="espera"> Esperando dibujo en el mapa...</p>
             )}
           </div>
 
@@ -263,7 +263,7 @@ function App() {
           />
         </main>
       </div>{" "}
-      {/* <-- FIN DEL CONTENEDOR PRINCIPAL */}
+      {/* FIN DEL CONTENEDOR PRINCIPAL */}
     </div>
   );
 }

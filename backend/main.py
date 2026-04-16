@@ -15,7 +15,7 @@ from shapely.ops import transform
 
 load_dotenv()
 API_KEY_WEATHER = os.getenv("WEATHER_API_KEY")
-TOKEN_ESIOS = os.getenv("ESIOS_TOKEN") # Para cuando tengas tu token de REE
+TOKEN_ESIOS = os.getenv("ESIOS_TOKEN") 
 
 app = FastAPI()
 
@@ -78,10 +78,10 @@ async def obtener_radiacion_pvgis(client, lat, lon):
     except:
         return 0.0 # Si es de noche o falla
 
+# De momento es una simulacion ya que no poseo el token de REE
 async def obtener_precio_esios(client):
     
     if not TOKEN_ESIOS:
-        # Simulador temporal hasta que consigas el token
         return 65.40 # €/MWh (Precio inventado)
     
     # No hay token de momento
@@ -121,7 +121,6 @@ def calcular_ampacidad(diametro_mm, res_ohm_km, emisividad, t_max_c, t_amb_c, ve
 @app.post("/calcular")
 async def calcular_rendimiento(datos: DatosEntrada):
     try:
-        # 1. COMPRENDER LA GEOMETRÍA
         if datos.tipo == 'Line':
             coordenadas_linea = datos.coordenadas
         else:
@@ -130,7 +129,6 @@ async def calcular_rendimiento(datos: DatosEntrada):
         lat_centro = coordenadas_linea[0]['lat']
         lon_centro = coordenadas_linea[0]['lng']
         
-        # ¡Magia de Shapely! Calculamos cuánto mide el cable que ha dibujado
         longitud_km = calcular_longitud_km(coordenadas_linea)
 
         # Llamada APIs (OpenMeteo para temperatura y viento, PVGIS para radiacion, Red Electrica costes)
@@ -144,7 +142,6 @@ async def calcular_rendimiento(datos: DatosEntrada):
             # Desempaquetamos los resultados en orden
             (t_amb, v_viento_10m), radiacion, precio_mwh = resultados
 
-        # 3. CÁLCULOS ELÉCTRICOS FINALES
         ampacidad = calcular_ampacidad(
             datos.diametro, datos.resistencia, datos.emisividad, 
             datos.temp_max, t_amb, v_viento_10m, radiacion, datos.altura_cable

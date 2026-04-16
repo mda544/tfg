@@ -1,6 +1,5 @@
 import axios from "axios";
 
-// Si el día de mañana cambias de servidor, SOLO tienes que cambiar esta línea
 const URL_BACKEND = "http://localhost:8000";
 
 /**
@@ -16,11 +15,9 @@ export const enviarCalculoRendimiento = async (datosEmpaquetados) => {
     return respuesta.data; // Devolvemos solo los datos útiles
   } catch (error) {
     console.error("Error en la comunicación con la API:", error);
-    // Lanzamos el error hacia arriba para que App.jsx decida cómo avisar al usuario
+    // Para avisar al usuario
     throw new Error("No se ha podido contactar con el servidor FastAPI.");
   }
 };
 
-// Aquí abajo puedes añadir en el futuro más funciones:
-// export const guardarProyecto = async (datos) => { ... }
-// export const obtenerClimaHistorico = async (coordenadas) => { ... }
+
