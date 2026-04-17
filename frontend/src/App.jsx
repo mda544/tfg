@@ -2,6 +2,9 @@ import { useState } from "react";
 import { enviarCalculoRendimiento } from "./services/api";
 import MapaTrazado from "./components/MapaTrazado";
 import "./App.css";
+import { useRef } from "react";
+import GeometryUploader from "./components/GeometryUploader";
+import PanelEscenariosEstacionales, { ESCENARIOS_DEFAULT } from "./components/PanelEscenariosEstacionales";
 
 function App() {
   const [datosMapa, setDatosMapa] = useState(null);
@@ -102,6 +105,32 @@ function App() {
       // Si el archivo api.js falla, el error llega hasta aquí
       alert(error.message);
     }
+  };
+
+  const mapaRef = useRef(null);
+
+  const manejarGeometriaCargada = (featureOArray) => {
+    // Si es array (varios features), tomamos el primero y avisamos
+    const feature = Array.isArray(featureOArray)
+      ? featureOArray[0]
+      : featureOArray;
+    mapaRef.current?.dibujarGeometria(feature);
+    // El onDatosDibujados del mapa se dispara internamente → setDatosMapa se actualiza solo
+  };
+
+  const [escenarios, setEscenarios] = useState(ESCENARIOS_DEFAULT);
+
+  const paqueteDatos = {
+    coordenadas: datosMapa.coordenadas,
+    conductor: { ...configCable },
+    escenarios: Object.entries(escenarios).map(([estacion, s]) => ({
+      estacion,
+      temp_amb_c:          s.temp,
+      vel_viento_ms:       s.viento,
+      angulo_viento_deg:   s.angulo,
+      radiacion_solar_wm2: s.radiacion,
+    })),
+    paso_segmentacion_m: 500,
   };
 
   return (
@@ -246,6 +275,8 @@ function App() {
             )}
           </div>
 
+          <GeometryUploader onGeometriaCargada={manejarGeometriaCargada} />
+
           <button
             className="btn-calcular"
             onClick={calcularRendimiento}
@@ -258,6 +289,7 @@ function App() {
         {/* PANEL DERECHO */}
         <main className="mapa-wrapper">
           <MapaTrazado
+            ref={mapaRef}
             onDatosDibujados={manejarNuevosDibujos}
             onDatosBorrados={manejarBorrado}
           />

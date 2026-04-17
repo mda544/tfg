@@ -174,3 +174,21 @@ header {
     transform: translateY(0);
   }
 }
+
+.geometry-uploader {
+  border: 1.5px dashed var(--color-border, #ccc);
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 12px;
+  user-select: none;
+}
+.geometry-uploader:hover { border-color: #3388ff; background: #f0f6ff; }
+.geometry-uploader.error { border-color: #e24b4a; }
+.uploader-icon { font-size: 20px; display: block; margin-bottom: 4px; }
+.uploader-label { margin: 0; font-size: 13px; color: #555; }
+.uploader-hint  { margin: 4px 0 0; font-size: 11px; color: #999; }
+.uploader-mensaje.ok    { color: #1D9E75; font-size: 12px; margin: 4px 0 0; }
+.uploader-mensaje.error { color: #e24b4a; font-size: 12px; margin: 4px 0 0; }
