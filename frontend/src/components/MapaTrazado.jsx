@@ -5,6 +5,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import "leaflet/dist/leaflet.css";
 
+// Configuración de los iconos de Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -54,6 +55,7 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
       });
     }
 
+    // Cleanup function al desmontar el componente
     return () => {
       if (map.pm) {
         map.pm.removeControls();
