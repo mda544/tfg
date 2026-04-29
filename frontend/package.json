@@ -13,9 +13,11 @@
     "@geoman-io/leaflet-geoman-free": "^2.11.0",
     "axios": "^1.15.0",
     "leaflet": "^1.9.4",
+    "proj4": "^2.20.8",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-leaflet": "^5.0.0",
+    "shapefile": "^0.6.6",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
