@@ -3,9 +3,11 @@ import hashlib
 from pathlib import Path
 from dataclasses import asdict
 from historical_climate import (
-    PercentilesEstacionales, Season,
     obtener_historico_openmeteo,
     obtener_historico_nasa_power,
+)
+from services.climate_processor import (
+    PercentilesEstacionales, Season,
 )
 
 CACHE_DIR = Path("climate_cache")
