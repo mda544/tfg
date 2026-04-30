@@ -35,7 +35,7 @@ function App() {
   const [usarDEM, setUsarDEM] = useState(true);
 
   const [cargandoClima, setCargandoClima] = useState(false);
-
+  const [fuenteClima, setFuenteClima] = useState("openmeteo");
   // Control del mapa
 
   const manejarNuevosDibujos = (datos) => {
@@ -111,23 +111,24 @@ function App() {
 
   // Historicos
 
-  const sincronizarClimaHistorico = async (coordenadas) => {
+  const sincronizarClimaHistorico = async (coordenadas, fuenteOverride) => {
     if (!coordenadas || coordenadas.length === 0) return;
 
     const mid = coordenadas[Math.floor(coordenadas.length / 2)];
     const lat = mid.lat;
     const lon = mid.lng !== undefined ? mid.lng : mid.lon;
 
-    setCargandoClima(true); // Encendemos el radar
+    const fuenteAConsultar = fuenteOverride || fuenteClima;
+
+    setCargandoClima(true);
     try {
-      console.log(
-        `[Frontend] Pidiendo clima histórico para: ${lat}, ${lon}...`,
+      // Le pasamos la fuente a la API
+      const historico = await obtenerClimatologiaHistorica(
+        lat,
+        lon,
+        fuenteAConsultar,
       );
-
-      const historico = await obtenerClimatologiaHistorica(lat, lon);
       if (!historico) throw new Error("El servidor no devolvió datos válidos.");
-
-      console.log("[Frontend] Clima recibido perfectamente:", historico);
 
       const nuevosEscenarios = {};
       Object.entries(historico).forEach(([est, p]) => {
@@ -139,14 +140,27 @@ function App() {
         };
       });
 
-      setEscenarios(nuevosEscenarios); // ¡Se mueven los sliders!
+      setEscenarios(nuevosEscenarios);
     } catch (err) {
       console.error("[Frontend] Fallo en auto-ajuste:", err);
       alert(
-        `⚠️ No se pudo cargar el clima histórico del satélite.\nMotivo: ${err.message}\nSe usarán los valores por defecto.`,
+        `⚠️ No se pudo cargar el clima histórico de ${fuenteAConsultar}.\nMotivo: ${err.message}`,
       );
     } finally {
-      setCargandoClima(false); // Apagamos el radar
+      setCargandoClima(false);
+    }
+  };
+
+  /**
+   * Si ya hay una linea dibujada y se cambia la fuente se calcula de nuevo automaticamente.
+   * @param {*} e
+   */
+  const manejarCambioFuenteClima = (e) => {
+    const nuevaFuente = e.target.value;
+    setFuenteClima(nuevaFuente);
+    // Si ya tenemos una línea cargada, recargamos el clima con el nuevo satélite
+    if (datosMapa && datosMapa.coordenadas) {
+      sincronizarClimaHistorico(datosMapa.coordenadas, nuevaFuente);
     }
   };
 
@@ -276,6 +290,27 @@ function App() {
             </p>
           </div>
 
+          {/* ¡NUEVO SELECTOR DE CLIMA! */}
+          <div className="grupo-input">
+            <label style={{ fontWeight: "bold" }}>
+              Satélite Climático (Histórico)
+            </label>
+            <select
+              value={fuenteClima}
+              onChange={manejarCambioFuenteClima}
+              className="select-cable"
+            >
+              <option value="openmeteo">
+                Copernicus ERA5 (Vía Open-Meteo)
+              </option>
+              <option value="nasa">MERRA-2 (Vía NASA POWER)</option>
+            </select>
+            <p className="dem-hint">
+              {fuenteClima === "openmeteo"
+                ? "Resolución 9km. Basado en el programa europeo Copernicus."
+                : "Resolución ~50km. Basado en satélites globales de la NASA."}
+            </p>
+          </div>
           <GeometryUploader onGeometriaCargada={manejarGeometriaCargada} />
 
           <button className="btn-limpiar" onClick={borrarTodoElMapa}>

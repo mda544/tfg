@@ -44,7 +44,7 @@ async def obtener_historico_openmeteo(
     Variables: temperatura 2m, viento 10m, radiación solar descendente.
     Sin registro. Sin límite de peticiones para uso no comercial.
     """
-    url = "https://archive.open-meteo.com/v1/archive"
+    url = "https://archive-api.open-meteo.com/v1/archive"    
     params = {
         "latitude":            lat,
         "longitude":           lon,

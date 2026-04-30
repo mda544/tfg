@@ -39,21 +39,19 @@ export const enviarCalculoRendimiento = async (paqueteDatos) => {
   }
 };
 
-export const obtenerClimatologiaHistorica = async (lat, lon) => {
+export const obtenerClimatologiaHistorica = async (lat, lon, fuente = "openmeteo") => {
   try {
     const respuesta = await axios.get(`${URL_BACKEND}/climatologia/percentiles`, {
-      params: { lat, lon }
+      params: { lat, lon, fuente } // Añadimos el parámetro aquí
     });
 
-    // ¡NUEVO! Detectamos si el backend de Python capturó un error internamente
     if (respuesta.data.status === "error") {
-      throw new Error(respuesta.data.mensaje || "Fallo interno en el cálculo de percentiles (Python)");
+      throw new Error(respuesta.data.mensaje || "Fallo interno en el cálculo (Python)");
     }
 
     return respuesta.data.percentiles; 
   } catch (error) {
     console.error("Error al obtener histórico:", error);
-    // Relanzamos el error para que App.jsx lo pueda mostrar
     throw error;
   }
 };
