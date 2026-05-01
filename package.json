@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "numpy": "^0.0.1",
     "proj4": "^2.20.8"
   }
 }

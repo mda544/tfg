@@ -3,33 +3,34 @@ import proj4 from "proj4";
 
 /**
  * Limpia y convierte valores numéricos con separadores de miles europeos o anglosajones a un número puro.
- * Ejemplo: "258.056,294" -> 258056.294
- * * @param {string|number} valor - El valor extraído de la celda del Excel.
+ * Ejemplo: "4.808.318.851" -> 4808318.851
+ * @param {string|number} valor - El valor extraído de la celda del Excel.
  * @returns {number} El número validado y formateado, o NaN si es inválido.
  */
 function parsearNumeroEuropeo(valor) {
   if (valor === null || valor === undefined) return NaN;
-  const str = String(valor).trim();
+  let str = String(valor).trim();
 
-  // Si ya es un número JS limpio, parseFloat directamente
+  // Si ya es un número JS limpio sin separadores de miles
   if (/^-?\d+(\.\d+)?$/.test(str)) return parseFloat(str);
 
-  // Detectar si usa coma como decimal: "258.056,294"
-  const tieneComaDecimal = /,\d{1,3}$/.test(str);
+  // Unificamos criterios: convertimos las comas en puntos
+  str = str.replace(/,/g, ".");
 
-  if (tieneComaDecimal) {
-    // Formato europeo: puntos = miles, coma = decimal
-    return parseFloat(str.replace(/\./g, "").replace(",", "."));
-  } else {
-    // Solo puntos como separadores de miles: "4.808.272.963" → "4808272.963"
-    // Heurística: si hay más de un punto, todos son separadores de miles
-    const nPuntos = (str.match(/\./g) || []).length;
-    if (nPuntos > 1) {
-      return parseFloat(str.replace(/\./g, ""));
-    }
-    // Un solo punto: decimal normal
-    return parseFloat(str);
+  // Separamos el número por bloques de puntos
+  const partes = str.split(".");
+
+  if (partes.length > 1) {
+    // Si hay más de un punto, asumimos que el ÚLTIMO trozo son los decimales
+    // y todo lo que hay a la izquierda son los miles/millones.
+    const enteros = partes.slice(0, -1).join(""); // Juntamos todo sin puntos
+    const decimales = partes[partes.length - 1]; // Nos quedamos el final
+
+    return parseFloat(`${enteros}.${decimales}`);
   }
+
+  // 4. Fallback de seguridad
+  return parseFloat(str);
 }
 
 /**
@@ -47,16 +48,17 @@ function detectarSistema(x, y) {
 }
 
 /**
- * Estima la zona UTM para la Península Ibérica basándose en el valor de la coordenada X (Easting).
- * Zonas posibles: 29N (Oeste), 30N (Centro), 31N (Este).
- * @param {number} easting - Coordenada X en el sistema UTM (en metros).
- * @returns {number} La zona UTM detectada (29, 30 o 31).
+ * Asigna la zona UTM por defecto. 
+ * Casi toda la Península Ibérica (incluyendo Asturias y Cantabria) está en la Zona 30.
+ * @param {number} easting - Coordenada X (ignorada ahora por ser irrelevante sin la longitud).
+ * @returns {number} La zona UTM por defecto (30).
  */
+// eslint-disable-next-line no-unused-vars
 function detectarZonaUTM(easting) {
-  // Heurística básica por coordenada X (Easting) para España peninsular:
-  if (easting > 700000) return 29; // Zona 29N (Oeste: Galicia, Portugal)
-  if (easting < 500000) return 31; // Zona 31N (Este: Cataluña, Baleares)
-  return 30; // Zona 30N (Centro de la península, la más habitual)
+  // Las zonas UTM en España son la 29, 30 y 31.
+  // Como la X se repite en todas, no se puede adivinar solo mirando la X.
+  // Forzamos la 30 como estándar nacional. 
+  return 30; 
 }
 
 const PROJ_WGS84 = "EPSG:4326";
@@ -146,6 +148,7 @@ export async function parseLineExcel(file, opcionesUTM = {}) {
     "comments",
     "comentario",
     "structure",
+    "structure comment",
   ]);
   const colAngle = encontrarColumna(columnas, [
     "line angle",
@@ -185,9 +188,9 @@ export async function parseLineExcel(file, opcionesUTM = {}) {
     const rawY = row[colY];
     const rawZ = colZ ? row[colZ] : null;
 
-    const x = parsearNumeroEuropeo(rawX);
-    const y = parsearNumeroEuropeo(rawY);
-    const z = rawZ !== null ? parsearNumeroEuropeo(rawZ) : null;
+    let x = parsearNumeroEuropeo(rawX);
+    let y = parsearNumeroEuropeo(rawY);
+    let z = rawZ !== null ? parsearNumeroEuropeo(rawZ) : null;
 
     if (isNaN(x) || isNaN(y)) {
       errores.push(
@@ -196,7 +199,13 @@ export async function parseLineExcel(file, opcionesUTM = {}) {
       return;
     }
 
+    // Si Excel se comió la coma y los hizo gigantes, los devolvemos a su tamaño real
+    if (x > 1000000) x = x / 1000;
+    if (y > 10000000) y = y / 1000;
+    if (z !== null && z > 10000) z = z / 1000;
+
     let punto;
+
     if (sistemaDetectado === "utm") {
       try {
         punto = utmAWgs84(x, y, zonaUTM);
@@ -223,21 +232,32 @@ export async function parseLineExcel(file, opcionesUTM = {}) {
     puntosSingulares.push({ ...punto, ...meta });
   });
 
-  if (coordenadas.length < 2) {
+  // Limpiamos cualquier posible NaN que haya generado proj4 en la reproyección
+  const coordenadasLimpias = coordenadas.filter(
+    (c) =>
+      c &&
+      typeof c.lat === "number" &&
+      typeof c.lng === "number" &&
+      !isNaN(c.lat) &&
+      !isNaN(c.lng),
+  );
+
+  // Exigimos al menos 2 puntos (para poder dibujar una línea)
+  if (coordenadasLimpias.length < 2) {
     throw new Error(
-      `Puntos válidos insuficientes (${coordenadas.length}).` +
-        (errores.length > 0 ? ` Primer error: ${errores[0]}` : ""),
+      `El Excel no contiene suficientes coordenadas matemáticas válidas (leídas: ${coordenadasLimpias.length}). Revisa que las celdas sean números puros.` +
+        (errores.length > 0 ? ` Pista del error: ${errores[0]}` : ""),
     );
   }
 
   return {
     tipo: "Line",
-    coordenadas,
+    coordenadas: coordenadasLimpias, // Usamos la matriz purificada
     propiedades: {
       fuente: "excel",
       sistema_original: sistemaDetectado,
       zona_utm: sistemaDetectado === "utm" ? zonaUTM : null,
-      n_apoyos: coordenadas.length,
+      n_apoyos: coordenadasLimpias.length, // Contamos solo los apoyos reales
       puntos_singulares: puntosSingulares,
     },
     advertencias: errores,

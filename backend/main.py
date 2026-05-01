@@ -1,24 +1,17 @@
-import os
-import httpx
-import math
-import asyncio # <-- NUEVO: Para hacer llamadas en paralelo
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Any
-from dotenv import load_dotenv
+from typing import List, Optional
+import asyncio
 
-# Importaciones geoespaciales
-from shapely.geometry import LineString
-from pyproj import Transformer
-from shapely.ops import transform
-
-load_dotenv()
-API_KEY_WEATHER = os.getenv("WEATHER_API_KEY")
-TOKEN_ESIOS = os.getenv("ESIOS_TOKEN") 
+from thermal_model import IEEE738Calculator, ConductorParams, MeteoParams
+from seasonal_scenarios import ESCENARIOS_DEFAULT, SeasonalRates, ScenarioMeteo, Season
+from segmentation import segmentar_trazado, segmentar_por_apoyos
+from geometry_validation import validar_trazado
+from dem_elevation import enriquecer_coordenadas_con_dem
+from historical_cache import obtener_percentiles
 
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -26,151 +19,253 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-class DatosEntrada(BaseModel):
-    tipo: str
-    coordenadas: List[Any]
-    diametro: float
-    resistencia: float
-    emisividad: float
-    temp_max: float
-    altura_cable: float
-
-# Shapely
-def calcular_longitud_km(coordenadas):
-    """
-    Convierte latitudes y longitudes (grados) en metros reales
-    usando la proyección Mercator y Shapely.
-    """
-    # 1. Extraer puntos (lon, lat)
-    puntos = [(pt['lng'], pt['lat']) for pt in coordenadas]
-    
-    # 2. Crear la línea geométrica
-    linea = LineString(puntos)
-    
-    # 3. Transformar de grados (EPSG:4326) a metros (EPSG:3857)
-    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-    linea_metros = transform(transformer.transform, linea)
-    
-    # 4. Devolver en kilómetros
-    return linea_metros.length / 1000.0
+calculator = IEEE738Calculator()
 
 
+# ── Modelos Pydantic ──────────────────────────────────────────────────────────
 
-# Clientes APIs
-async def obtener_clima_openmeteo(client, lat, lon):
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,wind_speed_10m"
-    respuesta = await client.get(url)
-    datos = respuesta.json().get('current', {})
-    
-    t_amb = datos.get('temperature_2m', 25.0)
-    v_viento_10m = datos.get('wind_speed_10m', 10.0) / 3.6 # Convertir a m/s
-    return t_amb, v_viento_10m
+class ConductorInput(BaseModel):
+    diametro_mm: float
+    r_ac_75_ohm_km: float
+    r_ac_25_ohm_km: float
+    emisividad: float = 0.5
+    absortividad: float = 0.5
+    temp_max_c: float = 90.0
 
-async def obtener_radiacion_pvgis(client, lat, lon):
-    
-    url = f"https://re.jrc.ec.europa.eu/api/v5_2/MRcalc?lat={lat}&lon={lon}&horpix=1&outputformat=json"
+class ScenarioInput(BaseModel):
+    estacion: Season
+    temp_amb_c: float
+    vel_viento_ms: float
+    angulo_viento_deg: float = 90.0
+    radiacion_solar_wm2: float
+
+class CalculoRequest(BaseModel):
+    coordenadas: List[dict]
+    conductor: ConductorInput
+    escenarios: Optional[List[ScenarioInput]] = None
+    paso_segmentacion_m: float = 500.0
+    usar_apoyos_reales: bool = False
+    usar_dem: bool = True  # Nuevo: activar/desactivar consulta DEM
+
+
+# ── Endpoint principal ────────────────────────────────────────────────────────
+
+@app.post("/calcular/rates-estacionales")
+async def calcular_rates_estacionales(req: CalculoRequest):
     try:
-        respuesta = await client.get(url)
-        datos = respuesta.json()
-        # Extraemos la irradiación global horizontal (Hi) promedio del mes actual (simplificado)
-        return 800.0 # W/m2 
-    except:
-        return 0.0 # Si es de noche o falla
+        # 1. VALIDACIÓN GEOMÉTRICA
+        val = validar_trazado([
+            {"lat": c["lat"], "lng": c.get("lng") or c.get("lon", 0)}
+            for c in req.coordenadas
+        ])
+        if not val.valido:
+            raise HTTPException(status_code=422, detail={
+                "errores": val.errores,
+                "advertencias": val.advertencias,
+                "info": val.info,
+            })
 
-# De momento es una simulacion ya que no poseo el token de REE
-async def obtener_precio_esios(client):
-    
-    if not TOKEN_ESIOS:
-        return 65.40 # €/MWh (Precio inventado)
-    
-    # No hay token de momento
-    cabeceras = {
-        'Accept': 'application/json; application/vnd.esios-api-v1+json',
-        'Content-Type': 'application/json',
-        'x-api-key': TOKEN_ESIOS
-    }
-    url = "https://api.esios.ree.es/indicators/1001" # Indicador del PVPC o Precio Spot
-    respuesta = await client.get(url, headers=cabeceras)
-    return 65.40 
+        # 2. ENRIQUECIMIENTO CON DEM
+        # Si las coordenadas ya tienen altitud (Excel con Z) o el usuario activó DEM,
+        # enriquecemos. Si todas las altitudes son 0 y usar_dem=True, consultamos la API.
+        coordenadas_ricas = req.coordenadas
+        fuente_altitud = "sin_altitud"
 
-
-
-# Calculo
-def calcular_ampacidad(diametro_mm, res_ohm_km, emisividad, t_max_c, t_amb_c, vel_viento_ms_10m, radiacion_wm2, altura_cable_m):
-    D = diametro_mm / 1000.0  
-    R = res_ohm_km / 1000.0   
-    if t_amb_c >= t_max_c: return 0.0
-
-    Tk_max, Tk_amb = t_max_c + 273.15, t_amb_c + 273.15
-    viento_corregido_ms = vel_viento_ms_10m * ((altura_cable_m / 10.0) ** 0.16)
-
-    Ps = emisividad * radiacion_wm2 * D
-    Pr = 5.67e-8 * emisividad * math.pi * D * (Tk_max**4 - Tk_amb**4)
-    
-    viento_efectivo = max(viento_corregido_ms, 0.1) 
-    Pc = 1.01 + 0.0372 * ((D * 1000) ** 0.52) * (viento_efectivo ** 0.52) * (t_max_c - t_amb_c)
-
-    calor_a_disipar = Pc + Pr - Ps
-    if calor_a_disipar <= 0: return 0.0
-
-    return round(math.sqrt(calor_a_disipar / R), 2)
-
-
-
-@app.post("/calcular")
-async def calcular_rendimiento(datos: DatosEntrada):
-    try:
-        # Verificamos que solo nos lleguen líneas (cables)
-        if datos.tipo != 'Line':
-            return {"status": "error", "mensaje": "Por favor, dibuja solo una línea (cable) en el mapa, no polígonos."}
-            
-        coordenadas_linea = datos.coordenadas
-
-        lat_centro = coordenadas_linea[0]['lat']
-        lon_centro = coordenadas_linea[0]['lng']
-        
-        longitud_km = calcular_longitud_km(coordenadas_linea)
-
-        # Llamada APIs (OpenMeteo para temperatura y viento, PVGIS para radiacion, Red Electrica costes)
-        async with httpx.AsyncClient() as client:
-            resultados = await asyncio.gather(
-                obtener_clima_openmeteo(client, lat_centro, lon_centro),
-                obtener_radiacion_pvgis(client, lat_centro, lon_centro),
-                obtener_precio_esios(client)
-            )
-            
-            # Desempaquetamos los resultados en orden
-            (t_amb, v_viento_10m), radiacion, precio_mwh = resultados
-
-        ampacidad = calcular_ampacidad(
-            datos.diametro, datos.resistencia, datos.emisividad, 
-            datos.temp_max, t_amb, v_viento_10m, radiacion, datos.altura_cable
+        tiene_z_excel = any(
+            (c.get("altitud") or 0) > 0 for c in req.coordenadas
         )
 
-        # Pérdidas por Efecto Joule: P_perdida = I^2 * R * Longitud
-        resistencia_total = (datos.resistencia / 1000.0) * (longitud_km * 1000.0)
-        # Suponemos que el cable va al 80% de su capacidad máxima (Ampacidad)
-        corriente_trabajo = ampacidad * 0.80
-        perdidas_watios = (corriente_trabajo ** 2) * resistencia_total
-        perdidas_mw = perdidas_watios / 1_000_000
+        if tiene_z_excel:
+            # Ya tenemos altitudes del Excel — no consultamos DEM externo
+            coordenadas_ricas = req.coordenadas
+            fuente_altitud = "excel_z"
+        elif req.usar_dem:
+            # Consultamos Open-Meteo Elevation API
+            try:
+                coordenadas_ricas = await enriquecer_coordenadas_con_dem(req.coordenadas)
+                fuente_altitud = "open_meteo_dem"
+            except Exception as e:
+                print(f"[DEM] Enriquecimiento falló, continuando sin altitud: {e}")
+                coordenadas_ricas = req.coordenadas
+                fuente_altitud = "sin_altitud_error"
 
-        # Coste económico de esa energía perdida en 1 hora
-        coste_perdidas_hora = perdidas_mw * precio_mwh
+        # 3. CONFIGURACIÓN DEL CONDUCTOR
+        conductor = ConductorParams(
+            diametro_mm=req.conductor.diametro_mm,
+            r_ac_75_ohm_km=req.conductor.r_ac_75_ohm_km,
+            r_ac_25_ohm_km=req.conductor.r_ac_25_ohm_km,
+            emisividad=req.conductor.emisividad,
+            absortividad=req.conductor.absortividad,
+            temp_max_c=req.conductor.temp_max_c,
+        )
 
-        return {
-            "status": "éxito",
-            "mensaje": (
-                f"INFORME DEL TRAZADO\n"
-                f"------------------------\n"
-                f"Longitud trazada: {round(longitud_km, 2)} km\n"
-                f"Clima local: {t_amb}ºC | Viento: {round(v_viento_10m, 1)} m/s\n"
-                f"Precio Spot Energía: {precio_mwh} €/MWh\n\n"
-                f"Ampacidad máxima: {ampacidad} A\n"
-                f"Energía perdida en calor: {round(perdidas_mw, 4)} MW\n"
-                f"Coste de pérdidas (hora): {round(coste_perdidas_hora, 2)} €"
+        # 4. ESCENARIOS METEOROLÓGICOS
+        if req.escenarios:
+            escenarios = {
+                s.estacion: ScenarioMeteo(
+                    nombre=s.estacion,
+                    estacion=s.estacion,
+                    temp_amb_c=s.temp_amb_c,
+                    vel_viento_ms=s.vel_viento_ms,
+                    angulo_viento_deg=s.angulo_viento_deg,
+                    radiacion_solar_wm2=s.radiacion_solar_wm2,
+                )
+                for s in req.escenarios
+            }
+        else:
+            escenarios = ESCENARIOS_DEFAULT
+
+        # 5. SEGMENTACIÓN DEL TRAZADO
+        if req.usar_apoyos_reales and len(coordenadas_ricas) >= 2:
+            tramos = segmentar_por_apoyos(coordenadas_ricas)
+            modo_segmentacion = f"vanos_reales ({len(tramos)} vanos)"
+        elif req.paso_segmentacion_m > 0:
+            tramos = segmentar_trazado(coordenadas_ricas, req.paso_segmentacion_m)
+            modo_segmentacion = f"cada_{req.paso_segmentacion_m:.0f}m"
+        else:
+            from segmentation import proyectar_linea, Tramo
+            linea = proyectar_linea(coordenadas_ricas)
+            mid = coordenadas_ricas[len(coordenadas_ricas) // 2]
+            lon_0 = req.coordenadas[0].get("lon") or req.coordenadas[0].get("lng")
+            lon_f = req.coordenadas[-1].get("lon") or req.coordenadas[-1].get("lng")
+            tramos = [Tramo(
+                id="V001", indice=0,
+                punto_inicio={"lat": req.coordenadas[0]["lat"], "lon": lon_0},
+                punto_medio={"lat": mid["lat"], "lon": mid.get("lon") or mid.get("lng")},
+                punto_fin={"lat": req.coordenadas[-1]["lat"], "lon": lon_f},
+                longitud_km=round(linea.length / 1000.0, 3),
+                altitud_m=0.0,
+            )]
+            modo_segmentacion = "tramo_unico"
+
+        if not tramos:
+            raise HTTPException(status_code=400, detail="No se pudieron generar tramos.")
+
+        # 6. CÁLCULO TÉRMICO IEEE 738 POR TRAMO
+        resultados = []
+        for tramo in tramos:
+            seasonal = SeasonalRates(
+                id_tramo=tramo.id,
+                longitud_km=tramo.longitud_km,
+                altitud_media_m=tramo.altitud_m,
             )
+
+            for estacion, escenario in escenarios.items():
+                meteo = MeteoParams(
+                    temp_amb_c=escenario.temp_amb_c,
+                    vel_viento_ms=escenario.vel_viento_ms,
+                    angulo_viento_deg=escenario.angulo_viento_deg,
+                    radiacion_solar_wm2=escenario.radiacion_solar_wm2,
+                    altitud_m=tramo.altitud_m,  # ← aquí entra el DEM
+                )
+                resultado = calculator.calcular(conductor, meteo)
+                seasonal.rates[estacion] = resultado.ampacidad_a
+                seasonal.detalles[estacion] = {
+                    "ampacidad_a": resultado.ampacidad_a,
+                    "qc_wm": resultado.qc_wm,
+                    "qr_wm": resultado.qr_wm,
+                    "qs_wm": resultado.qs_wm,
+                    "r_tc_ohm_m": resultado.r_tc_ohm_m,
+                    "modo_conveccion": resultado.modo_conveccion,
+                    "altitud_m": tramo.altitud_m,
+                    "escenario": {
+                        "temp_amb_c": escenario.temp_amb_c,
+                        "vel_viento_ms": escenario.vel_viento_ms,
+                        "radiacion_wm2": escenario.radiacion_solar_wm2,
+                    },
+                }
+
+            resultados.append({
+                "id_tramo": seasonal.id_tramo,
+                "longitud_km": seasonal.longitud_km,
+                "altitud_m": tramo.altitud_m,
+                "punto_medio": tramo.punto_medio,
+                "punto_inicio": tramo.punto_inicio,
+                "punto_fin": tramo.punto_fin,
+                "rates": seasonal.rates,
+                "detalles": seasonal.detalles,
+                "rate_diseno_a": min(seasonal.rates.values()),
+            })
+
+        # 7. RESUMEN Y RESPUESTA
+        return {
+            "status": "ok",
+            "n_tramos": len(resultados),
+            "conductor": req.conductor.model_dump(),
+            "tramos": resultados,
+            "rate_linea_diseno_a": min(t["rate_diseno_a"] for t in resultados),
+            "rates_por_estacion": {
+                est: min(t["rates"].get(est, 9999) for t in resultados)
+                for est in escenarios
+            },
+            "info_trazado": {
+                **val.info,
+                "fuente_altitud": fuente_altitud,
+                "modo_segmentacion": modo_segmentacion,
+                "altitud_min_m": min(t["altitud_m"] for t in resultados),
+                "altitud_max_m": max(t["altitud_m"] for t in resultados),
+                "altitud_media_m": round(
+                    sum(t["altitud_m"] for t in resultados) / len(resultados), 1
+                ),
+            },
+            "advertencias_validacion": val.advertencias,
         }
-        
+
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        return {"status": "error", "mensaje": f"Error en el servidor: {str(e)}"}
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Endpoint de climatología ──────────────────────────────────────────────────
+
+@app.get("/climatologia/percentiles")
+async def get_percentiles(
+    lat: float,
+    lon: float,
+    fuente: str = "openmeteo",
+    anio_inicio: int = 1990,
+    anio_fin: int = 2023,
+):
+    try:
+        percentiles = await obtener_percentiles(lat, lon, fuente, anio_inicio, anio_fin)
+        return {
+            "status": "ok",
+            "fuente": fuente,
+            "punto": {"lat": lat, "lon": lon},
+            "percentiles": {
+                est: {
+                    "temp_p10_c":        p.temp_p10_c,
+                    "temp_p50_c":        p.temp_p50_c,
+                    "temp_p90_c":        p.temp_p90_c,
+                    "viento_p10_ms":     p.viento_p10_ms,
+                    "viento_p50_ms":     p.viento_p50_ms,
+                    "viento_p90_ms":     p.viento_p90_ms,
+                    "radiacion_p50_wm2": p.radiacion_p50_wm2,
+                    "radiacion_p90_wm2": p.radiacion_p90_wm2,
+                    "n_horas":           p.n_horas,
+                    "fuente":            p.fuente,
+                    "anios_cubiertos":   p.anios_cubiertos,
+                }
+                for est, p in percentiles.items()
+            },
+        }
+    except Exception as e:
+        return {"status": "error", "mensaje": str(e)}
+
+
+# ── Endpoint de altitud puntual (para debug/preview) ─────────────────────────
+
+@app.get("/dem/altitud")
+async def get_altitud_punto(lat: float, lon: float):
+    """Devuelve la altitud de un punto según Open-Meteo DEM."""
+    try:
+        resultado = await enriquecer_coordenadas_con_dem([{"lat": lat, "lng": lon}])
+        return {
+            "status": "ok",
+            "lat": lat,
+            "lon": lon,
+            "altitud_m": resultado[0].get("altitud", 0),
+        }
+    except Exception as e:
+        return {"status": "error", "mensaje": str(e)}
