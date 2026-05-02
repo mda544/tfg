@@ -1,15 +1,19 @@
+import math
+import traceback
+import asyncio
+from typing import List, Optional
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
-import asyncio
 
 from thermal_model import IEEE738Calculator, ConductorParams, MeteoParams
 from seasonal_scenarios import ESCENARIOS_DEFAULT, SeasonalRates, ScenarioMeteo, Season
 from segmentation import segmentar_trazado, segmentar_por_apoyos
+
 from geometry_validation import validar_trazado
 from dem_elevation import enriquecer_coordenadas_con_dem
-from historical_cache import obtener_percentiles
+from historical_cache import obtener_percentiles  
 
 app = FastAPI()
 app.add_middleware(
@@ -21,9 +25,7 @@ app.add_middleware(
 )
 calculator = IEEE738Calculator()
 
-
-# ── Modelos Pydantic ──────────────────────────────────────────────────────────
-
+# Modelos Pydantic
 class ConductorInput(BaseModel):
     diametro_mm: float
     r_ac_75_ohm_km: float
@@ -45,11 +47,9 @@ class CalculoRequest(BaseModel):
     escenarios: Optional[List[ScenarioInput]] = None
     paso_segmentacion_m: float = 500.0
     usar_apoyos_reales: bool = False
-    usar_dem: bool = True  # Nuevo: activar/desactivar consulta DEM
+    usar_dem: bool = True  
 
-
-# ── Endpoint principal ────────────────────────────────────────────────────────
-
+# Endpoint principal
 @app.post("/calcular/rates-estacionales")
 async def calcular_rates_estacionales(req: CalculoRequest):
     try:
@@ -66,54 +66,29 @@ async def calcular_rates_estacionales(req: CalculoRequest):
             })
 
         # 2. ENRIQUECIMIENTO CON DEM
-        # Si las coordenadas ya tienen altitud (Excel con Z) o el usuario activó DEM,
-        # enriquecemos. Si todas las altitudes son 0 y usar_dem=True, consultamos la API.
         coordenadas_ricas = req.coordenadas
         fuente_altitud = "sin_altitud"
 
-        tiene_z_excel = any(
-            (c.get("altitud") or 0) > 0 for c in req.coordenadas
-        )
+        tiene_z_excel = any((c.get("altitud") or 0) > 0 for c in req.coordenadas)
 
         if tiene_z_excel:
-            # Ya tenemos altitudes del Excel — no consultamos DEM externo
-            coordenadas_ricas = req.coordenadas
             fuente_altitud = "excel_z"
         elif req.usar_dem:
-            # Consultamos Open-Meteo Elevation API
             try:
                 coordenadas_ricas = await enriquecer_coordenadas_con_dem(req.coordenadas)
                 fuente_altitud = "open_meteo_dem"
             except Exception as e:
-                print(f"[DEM] Enriquecimiento falló, continuando sin altitud: {e}")
-                coordenadas_ricas = req.coordenadas
+                print(f"[DEM] Enriquecimiento falló: {e}")
                 fuente_altitud = "sin_altitud_error"
 
         # 3. CONFIGURACIÓN DEL CONDUCTOR
-        conductor = ConductorParams(
-            diametro_mm=req.conductor.diametro_mm,
-            r_ac_75_ohm_km=req.conductor.r_ac_75_ohm_km,
-            r_ac_25_ohm_km=req.conductor.r_ac_25_ohm_km,
-            emisividad=req.conductor.emisividad,
-            absortividad=req.conductor.absortividad,
-            temp_max_c=req.conductor.temp_max_c,
-        )
+        conductor = ConductorParams(**req.conductor.model_dump())
 
         # 4. ESCENARIOS METEOROLÓGICOS
-        if req.escenarios:
-            escenarios = {
-                s.estacion: ScenarioMeteo(
-                    nombre=s.estacion,
-                    estacion=s.estacion,
-                    temp_amb_c=s.temp_amb_c,
-                    vel_viento_ms=s.vel_viento_ms,
-                    angulo_viento_deg=s.angulo_viento_deg,
-                    radiacion_solar_wm2=s.radiacion_solar_wm2,
-                )
-                for s in req.escenarios
-            }
-        else:
-            escenarios = ESCENARIOS_DEFAULT
+        escenarios = {
+            s.estacion: ScenarioMeteo(**s.model_dump(), nombre=s.estacion)
+            for s in req.escenarios
+        } if req.escenarios else ESCENARIOS_DEFAULT
 
         # 5. SEGMENTACIÓN DEL TRAZADO
         if req.usar_apoyos_reales and len(coordenadas_ricas) >= 2:
@@ -123,31 +98,22 @@ async def calcular_rates_estacionales(req: CalculoRequest):
             tramos = segmentar_trazado(coordenadas_ricas, req.paso_segmentacion_m)
             modo_segmentacion = f"cada_{req.paso_segmentacion_m:.0f}m"
         else:
-            from segmentation import proyectar_linea, Tramo
-            linea = proyectar_linea(coordenadas_ricas)
-            mid = coordenadas_ricas[len(coordenadas_ricas) // 2]
-            lon_0 = req.coordenadas[0].get("lon") or req.coordenadas[0].get("lng")
-            lon_f = req.coordenadas[-1].get("lon") or req.coordenadas[-1].get("lng")
-            tramos = [Tramo(
-                id="V001", indice=0,
-                punto_inicio={"lat": req.coordenadas[0]["lat"], "lon": lon_0},
-                punto_medio={"lat": mid["lat"], "lon": mid.get("lon") or mid.get("lng")},
-                punto_fin={"lat": req.coordenadas[-1]["lat"], "lon": lon_f},
-                longitud_km=round(linea.length / 1000.0, 3),
-                altitud_m=0.0,
-            )]
-            modo_segmentacion = "tramo_unico"
+            raise HTTPException(status_code=400, detail="Segmentación inválida.")
 
         if not tramos:
             raise HTTPException(status_code=400, detail="No se pudieron generar tramos.")
 
         # 6. CÁLCULO TÉRMICO IEEE 738 POR TRAMO
         resultados = []
-        for tramo in tramos:
+        for tramo in tramos:            
+            
+            lat_tramo = tramo.punto_medio["lat"]               
+            altitud_segura = float(tramo.altitud_m) if tramo.altitud_m is not None else 0.0
+
             seasonal = SeasonalRates(
                 id_tramo=tramo.id,
                 longitud_km=tramo.longitud_km,
-                altitud_media_m=tramo.altitud_m,
+                altitud_media_m=altitud_segura,
             )
 
             for estacion, escenario in escenarios.items():
@@ -156,9 +122,17 @@ async def calcular_rates_estacionales(req: CalculoRequest):
                     vel_viento_ms=escenario.vel_viento_ms,
                     angulo_viento_deg=escenario.angulo_viento_deg,
                     radiacion_solar_wm2=escenario.radiacion_solar_wm2,
-                    altitud_m=tramo.altitud_m,  # ← aquí entra el DEM
+                    altitud_m=altitud_segura,
                 )
-                resultado = calculator.calcular(conductor, meteo)
+                
+                # INYECTAR PARÁMETROS GEOGRÁFICOS DINÁMICOS
+                resultado = calculator.calcular(
+                    conductor=conductor, 
+                    meteo=meteo,
+                    latitud_deg=lat_tramo,
+                    azimut_linea_deg=tramo.azimut_deg                 
+                )
+                
                 seasonal.rates[estacion] = resultado.ampacidad_a
                 seasonal.detalles[estacion] = {
                     "ampacidad_a": resultado.ampacidad_a,
@@ -167,7 +141,7 @@ async def calcular_rates_estacionales(req: CalculoRequest):
                     "qs_wm": resultado.qs_wm,
                     "r_tc_ohm_m": resultado.r_tc_ohm_m,
                     "modo_conveccion": resultado.modo_conveccion,
-                    "altitud_m": tramo.altitud_m,
+                    "altitud_m": altitud_segura,
                     "escenario": {
                         "temp_amb_c": escenario.temp_amb_c,
                         "vel_viento_ms": escenario.vel_viento_ms,
@@ -178,7 +152,7 @@ async def calcular_rates_estacionales(req: CalculoRequest):
             resultados.append({
                 "id_tramo": seasonal.id_tramo,
                 "longitud_km": seasonal.longitud_km,
-                "altitud_m": tramo.altitud_m,
+                "altitud_m": altitud_segura,
                 "punto_medio": tramo.punto_medio,
                 "punto_inicio": tramo.punto_inicio,
                 "punto_fin": tramo.punto_fin,
@@ -214,10 +188,13 @@ async def calcular_rates_estacionales(req: CalculoRequest):
     except HTTPException as he:
         raise he
     except Exception as e:
+        print("--- ERROR INTERNO ---")
+        traceback.print_exc() 
+        print("---------------------")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Endpoint de climatología ──────────────────────────────────────────────────
+# Endpoint de climatología
 
 @app.get("/climatologia/percentiles")
 async def get_percentiles(
@@ -254,7 +231,7 @@ async def get_percentiles(
         return {"status": "error", "mensaje": str(e)}
 
 
-# ── Endpoint de altitud puntual (para debug/preview) ─────────────────────────
+# Endpoint de altitud puntual (para debug/preview)
 
 @app.get("/dem/altitud")
 async def get_altitud_punto(lat: float, lon: float):

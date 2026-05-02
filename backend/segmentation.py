@@ -14,6 +14,18 @@ class Tramo:
     punto_fin: dict
     longitud_km: float
     altitud_m: float = 0.0
+    azimut_deg: float = 90.0 
+
+# NUEVA FUNCIÓN MOVIDA DESDE MAIN.PY 
+def calcular_azimut(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calcula el azimut (orientación respecto al Norte) entre dos puntos GPS."""
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlon = lon2 - lon1
+    x = math.sin(dlon) * math.cos(lat2)
+    y = math.cos(lat1) * math.sin(lat2) - (math.sin(lat1) * math.cos(lat2) * math.cos(dlon))
+    azimut = math.degrees(math.atan2(x, y))
+    return (azimut + 360) % 360
+
 
 def proyectar_linea(coordenadas: list[dict]) -> LineString:
     puntos = [(pt["lng"], pt["lat"]) for pt in coordenadas]
@@ -58,13 +70,22 @@ def segmentar_trazado(
         p_mid  = linea_proj.interpolate(d_medio)
         p_fin  = linea_proj.interpolate(min(d_fin, longitud_total))
 
+        pt_inicio = _punto_a_wgs84(p_ini, transformer_inv)
+        pt_fin = _punto_a_wgs84(p_fin, transformer_inv)
+        
+        # Calcular el azimut para este tramo segmentado
+        azimut = calcular_azimut(
+            pt_inicio["lat"], pt_inicio["lon"], pt_fin["lat"], pt_fin["lon"]
+        )
+
         tramos.append(Tramo(
             id=f"T{i+1:03d}",
             indice=i,
-            punto_inicio=_punto_a_wgs84(p_ini, transformer_inv),
+            punto_inicio=pt_inicio,
             punto_medio=_punto_a_wgs84(p_mid, transformer_inv),
-            punto_fin=_punto_a_wgs84(p_fin, transformer_inv),
+            punto_fin=pt_fin,
             longitud_km=round(paso_real / 1000.0, 3),
+            azimut_deg=round(azimut, 1) # Guardamos el dato en el objeto
         ))
 
     return tramos
@@ -73,18 +94,15 @@ def segmentar_por_apoyos(coordenadas: list[dict]) -> list[Tramo]:
     """
     Crea un tramo por vano real entre apoyos consecutivos.
     Usa las coordenadas del Excel directamente, incluyendo altitud Z si existe.
-    Ideal cuando el trazado viene de un fichero con apoyos reales.
     """
     tramos = []
     for i in range(len(coordenadas) - 1):
         p_ini = coordenadas[i]
         p_fin = coordenadas[i + 1]
         
-        # Normalizar clave lon/lng
         lon_ini = p_ini.get("lon") or p_ini.get("lng", 0)
         lon_fin = p_fin.get("lon") or p_fin.get("lng", 0)
         
-        # Altitud media del vano — usa Z del Excel si existe, 0 si no
         alt_ini = p_ini.get("altitud", 0) or 0
         alt_fin = p_fin.get("altitud", 0) or 0
         altitud_media = (alt_ini + alt_fin) / 2.0
@@ -93,6 +111,9 @@ def segmentar_por_apoyos(coordenadas: list[dict]) -> list[Tramo]:
             {"lat": p_ini["lat"], "lng": lon_ini},
             {"lat": p_fin["lat"],  "lng": lon_fin},
         )
+        
+        # Calcular el azimut del vano real
+        azimut = calcular_azimut(p_ini["lat"], lon_ini, p_fin["lat"], lon_fin)
         
         tramos.append(Tramo(
             id=f"V{i+1:03d}",
@@ -105,5 +126,6 @@ def segmentar_por_apoyos(coordenadas: list[dict]) -> list[Tramo]:
             punto_fin={"lat": p_fin["lat"], "lon": lon_fin},
             longitud_km=round(longitud_m / 1000.0, 3),
             altitud_m=round(altitud_media, 1),
+            azimut_deg=round(azimut, 1) # Guardamos el dato en el objeto
         ))
     return tramos

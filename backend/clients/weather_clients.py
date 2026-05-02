@@ -2,7 +2,6 @@ import httpx
 
 class OpenMeteoClient:
     def __init__(self):
-        # Usamos la URL -api que no suele estar bloqueada
         self.url = "https://archive-api.open-meteo.com/v1/archive"
 
     async def fetch_hourly_data(self, lat: float, lon: float, start_date: str, end_date: str) -> dict:

@@ -59,7 +59,6 @@ class ClimateProcessor:
         temps = np.array([t2m[f] for f in fechas], dtype=float)
         vientos = np.array([ws10[f] for f in fechas], dtype=float)
         
-        # BUG CORREGIDO: Transformamos de kWh/m²/día a W/m² promedio diurno útil
         radiaciones = np.array([(rad[f] * 1000.0) / 12.0 for f in fechas], dtype=float)
 
         return ClimateProcessor._calcular_percentiles_array(
