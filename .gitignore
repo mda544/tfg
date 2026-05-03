@@ -213,3 +213,7 @@ build/
 .env
 .env.local
 .DS_Store
+
+# Cachés del backend
+backend/dem_cache/
+backend/climate_cache/
