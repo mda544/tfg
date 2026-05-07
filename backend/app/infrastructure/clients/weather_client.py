@@ -1,8 +1,8 @@
 import httpx
 
 class OpenMeteoClient:
-    def __init__(self):
-        self.url = "https://archive-api.open-meteo.com/v1/archive"
+    
+    BASE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
     async def fetch_hourly_data(self, lat: float, lon: float, start_date: str, end_date: str) -> dict:
         params = {
@@ -21,8 +21,8 @@ class OpenMeteoClient:
 
 
 class NasaPowerClient:
-    def __init__(self):
-        self.url = "https://power.larc.nasa.gov/api/temporal/daily/point"
+    
+    BASE_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
 
     async def fetch_daily_data(self, lat: float, lon: float, start_date: str, end_date: str) -> dict:
         params = {

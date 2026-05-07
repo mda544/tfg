@@ -1,8 +1,27 @@
 from dataclasses import dataclass, field
 from typing import Literal
-import math
+
+from app.core.utils.geo import haversine_m
+
 
 Nivel = Literal["ok", "advertencia", "error"]
+
+# Cobertura de fuentes meteorológicas y DEM usadas en el backend
+COBERTURAS = {
+    "Open-Meteo":            {"lat": (-90,  90), "lon": (-180, 180)},
+    "NASA POWER":            {"lat": (-90,  90), "lon": (-180, 180)},
+    "Copernicus DEM GLO-30": {"lat": (-90,  84), "lon": (-180, 180)},
+}
+
+LIMITES = {
+    "min_puntos":           2,
+    "min_longitud_m":       100,
+    "max_longitud_km":      500,
+    "max_bbox_grados":      10,
+    "max_separacion_km":    50,
+    "max_autocruce_check":  200,  # solo revisar si hay menos de 200 segmentos
+}
+
 
 @dataclass
 class ResultadoValidacion:
@@ -11,21 +30,6 @@ class ResultadoValidacion:
     advertencias: list[str] = field(default_factory=list)
     info:         dict      = field(default_factory=dict)
 
-# Cobertura de fuentes meteorológicas y DEM usadas en el backend
-COBERTURAS = {
-    "Open-Meteo":           {"lat": (-90,  90),  "lon": (-180, 180)},
-    "NASA POWER":           {"lat": (-90,  90),  "lon": (-180, 180)},
-    "Copernicus DEM GLO-30":{"lat": (-90,  84),  "lon": (-180, 180)},
-}
-
-LIMITES = {
-    "min_puntos":        2,
-    "min_longitud_m":    100,
-    "max_longitud_km":   500,
-    "max_bbox_grados":   10,
-    "max_separacion_km": 50,
-    "max_autocruce_check": 200,  # solo revisar si hay menos de 200 segmentos
-}
 
 def validar_trazado(coordenadas: list[dict]) -> ResultadoValidacion:
     """
@@ -36,14 +40,14 @@ def validar_trazado(coordenadas: list[dict]) -> ResultadoValidacion:
     advertencias = []
     info         = {}
 
-    # ── 1. Mínimo de puntos ──────────────────────────────
+    # 1. Mínimo de puntos
     if len(coordenadas) < LIMITES["min_puntos"]:
         return ResultadoValidacion(
             valido=False,
             errores=[f"Trazado con {len(coordenadas)} punto(s). Mínimo: {LIMITES['min_puntos']}."]
         )
 
-    # ── 2. Rango WGS84 estricto ──────────────────────────
+    # 2. Rango WGS84 estricto
     fuera_rango = [
         i for i, c in enumerate(coordenadas)
         if not (-90 <= c["lat"] <= 90) or not (-180 <= c["lng"] <= 180)
@@ -55,7 +59,7 @@ def validar_trazado(coordenadas: list[dict]) -> ResultadoValidacion:
         )
         return ResultadoValidacion(valido=False, errores=errores)
 
-    # ── 3. Bounding box ──────────────────────────────────
+    # 3. Bounding box
     lats = [c["lat"] for c in coordenadas]
     lons = [c["lng"] for c in coordenadas]
     bbox = {
@@ -72,9 +76,9 @@ def validar_trazado(coordenadas: list[dict]) -> ResultadoValidacion:
             f"Verifica que no haya coordenadas erróneas."
         )
 
-    # ── 4. Longitud total ────────────────────────────────
+    # 4. Longitud total
     longitud_m = sum(
-        _haversine_m(coordenadas[i], coordenadas[i + 1])
+        haversine_m(coordenadas[i], coordenadas[i + 1])
         for i in range(len(coordenadas) - 1)
     )
     longitud_km = longitud_m / 1000.0
@@ -91,10 +95,10 @@ def validar_trazado(coordenadas: list[dict]) -> ResultadoValidacion:
             f"El cálculo puede tardar varios minutos."
         )
 
-    # ── 5. Separación entre apoyos ───────────────────────
+    # 5. Separación entre apoyos
     tramos_largos = []
     for i in range(len(coordenadas) - 1):
-        d_km = _haversine_m(coordenadas[i], coordenadas[i + 1]) / 1000.0
+        d_km = haversine_m(coordenadas[i], coordenadas[i + 1]) / 1000.0
         if d_km > LIMITES["max_separacion_km"]:
             tramos_largos.append({"desde": i, "hasta": i + 1, "km": round(d_km, 1)})
 
@@ -105,7 +109,7 @@ def validar_trazado(coordenadas: list[dict]) -> ResultadoValidacion:
         )
     info["tramos_largos"] = tramos_largos
 
-    # ── 6. Cobertura de fuentes de datos ─────────────────
+    # 6. Cobertura de fuentes de datos
     for fuente, cob in COBERTURAS.items():
         fuera = [
             c for c in coordenadas
@@ -118,7 +122,7 @@ def validar_trazado(coordenadas: list[dict]) -> ResultadoValidacion:
                 f"Los datos pueden no estar disponibles para esas coordenadas."
             )
 
-    # ── 7. Autocruce (solo trazados cortos) ──────────────
+    # 7. Autocruce (solo trazados cortos)
     n_seg = len(coordenadas) - 1
     if n_seg <= LIMITES["max_autocruce_check"]:
         cruces = _detectar_autocruce(coordenadas)
@@ -139,21 +143,10 @@ def validar_trazado(coordenadas: list[dict]) -> ResultadoValidacion:
     )
 
 
-def _haversine_m(a: dict, b: dict) -> float:
-    R = 6_371_000.0
-    dlat = math.radians(b["lat"] - a["lat"])
-    dlon = math.radians(b["lng"] - a["lng"])
-    x = (math.sin(dlat / 2) ** 2 +
-         math.cos(math.radians(a["lat"])) *
-         math.cos(math.radians(b["lat"])) *
-         math.sin(dlon / 2) ** 2)
-    return 2 * R * math.asin(math.sqrt(x))
-
-
 def _segmentos_se_cruzan(p1, p2, p3, p4) -> bool:
     """Detecta si el segmento p1-p2 se cruza con p3-p4 (2D, ignorando extremos compartidos)."""
     def ccw(A, B, C):
-        return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
+        return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
     A = (p1["lng"], p1["lat"])
     B = (p2["lng"], p2["lat"])
     C = (p3["lng"], p3["lat"])
@@ -169,8 +162,8 @@ def _detectar_autocruce(coordenadas: list[dict]) -> list[dict]:
             if i == 0 and j == n - 2:
                 continue  # extremos de una línea cerrada, ignorar
             if _segmentos_se_cruzan(
-                coordenadas[i], coordenadas[i+1],
-                coordenadas[j], coordenadas[j+1]
+                coordenadas[i],     coordenadas[i + 1],
+                coordenadas[j],     coordenadas[j + 1],
             ):
                 cruces.append({"seg_a": i, "seg_b": j})
     return cruces

@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Literal
-from thermal_model import MeteoParams
 
-Season = Literal["verano", "otono", "invierno", "primavera"]
+from app.domain.types import Season
+
 
 @dataclass
 class ScenarioMeteo:
@@ -19,14 +18,15 @@ class ScenarioMeteo:
     radiacion_solar_wm2: float
     descripcion: str = ""
 
+
 # Escenarios por defecto para la Península Ibérica
 # Fuente de referencia para calibrar: ERA5 percentil 90 Ta / percentil 10 viento
 ESCENARIOS_DEFAULT: dict[Season, ScenarioMeteo] = {
     "verano": ScenarioMeteo(
         nombre="Verano peninsular",
         estacion="verano",
-        temp_amb_c=38.0,      # P90 temperatura en julio/agosto
-        vel_viento_ms=0.6,    # P10 velocidad: condición más restrictiva
+        temp_amb_c=38.0,       # P90 temperatura en julio/agosto
+        vel_viento_ms=0.6,     # P10 velocidad: condición más restrictiva
         angulo_viento_deg=90.0,
         radiacion_solar_wm2=900.0,
         descripcion="Condición más restrictiva del año. Verano con calma de vientos.",
@@ -43,7 +43,7 @@ ESCENARIOS_DEFAULT: dict[Season, ScenarioMeteo] = {
     "invierno": ScenarioMeteo(
         nombre="Invierno peninsular",
         estacion="invierno",
-        temp_amb_c=5.0,       # P90 frío: condición más favorable para la línea
+        temp_amb_c=5.0,        # P90 frío: condición más favorable para la línea
         vel_viento_ms=3.0,
         angulo_viento_deg=90.0,
         radiacion_solar_wm2=200.0,
@@ -60,11 +60,12 @@ ESCENARIOS_DEFAULT: dict[Season, ScenarioMeteo] = {
     ),
 }
 
+
 @dataclass
 class SeasonalRates:
     """Resultado completo de rates estacionales para una línea o tramo."""
     id_tramo: str
     longitud_km: float
     altitud_media_m: float
-    rates: dict[Season, float] = field(default_factory=dict)   # A por estación
-    detalles: dict = field(default_factory=dict)               # RateResult completo por estación
+    rates: dict[Season, float] = field(default_factory=dict)    # A por estación
+    detalles: dict = field(default_factory=dict)                 # RateResult completo por estación

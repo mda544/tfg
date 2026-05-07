@@ -3,12 +3,16 @@ version: "3.8"
 services:
   backend:
     image: python:3.10-slim
-    working_dir: /app
+    working_dir: /backend
     volumes:
-      - ./backend:/app
+      - ./backend:/backend
     ports:
       - "8000:8000"
-    command: bash -c "pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      - PYTHONPATH=/backend
+    command: >
+      bash -c "pip install -r requirements.txt &&
+               uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:
     build:
@@ -21,4 +25,5 @@ services:
       - "5173:5173"
     environment:
       - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://localhost:8000
     command: npm run dev -- --host 0.0.0.0

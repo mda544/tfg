@@ -217,3 +217,4 @@ build/
 # Cachés del backend
 backend/dem_cache/
 backend/climate_cache/
+.claude/
