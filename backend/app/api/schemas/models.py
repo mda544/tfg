@@ -3,176 +3,281 @@ from pydantic import BaseModel
 from app.domain.types import Season
 
 
-# Tipos compartidos
+# Tipos compartidos 
 
-# Representa un punto geográfico WGS84.
-# Compartido por TramoResult (inicio, medio y fin de cada tramo)
-# y por PercentilesResponse (punto de consulta climática).
-class PuntoGeo(BaseModel):
+class GeoPointDTO(BaseModel):
+    """Punto geográfico WGS84. Clave canónica 'lon' — el frontend puede enviar
+    'lng' pero se normaliza en rates_service antes de llegar aquí."""
     lat: float
     lon: float
 
 
-# Calculos: entrada
+# DTOs de entrada: POST /api/v1/rates 
 
-# Parámetros eléctricos y térmicos del conductor a analizar.
-# Usado en CalculoRequest como campo anidado.
-# En el servicio se convierte a ConductorParams (domain/thermal_model.py)
-# para ser consumido por IEEE738Calculator.
-class ConductorInput(BaseModel):
-    diametro_mm:     float
+class ConductorDTO(BaseModel):
+    """Parámetros del conductor. Convertido a Entidad Conductor (domain/entities.py)
+    en rates_service. Usado dentro de RateCalculationRequestDTO."""
+    diameter_mm:     float
     r_ac_75_ohm_km:  float
     r_ac_25_ohm_km:  float
-    emisividad:      float = 0.5
-    absortividad:    float = 0.5
-    temp_max_c:      float = 90.0
+    emissivity:      float = 0.5
+    absorptivity:    float = 0.5
+    max_temp_c:      float = 90.0
 
 
-# Parámetros meteorológicos de un escenario estacional personalizado.
-# Usado en CalculoRequest.escenarios (lista opcional).
-# Si el cliente no envía escenarios, el servicio usa ESCENARIOS_DEFAULT
-# definidos en domain/seasonal_scenarios.py.
-class ScenarioInput(BaseModel):
-    estacion:            Season
+class MeteoScenarioDTO(BaseModel):
+    """Escenario meteorológico personalizado para una estación.
+    Lista opcional dentro de RateCalculationRequestDTO.
+    Si se omite, rates_service usa DEFAULT_SCENARIOS (Península Ibérica)."""
+    season:              Season
     temp_amb_c:          float
-    vel_viento_ms:       float
-    angulo_viento_deg:   float = 90.0
-    radiacion_solar_wm2: float
+    wind_speed_ms:       float
+    wind_angle_deg:      float = 90.0
+    solar_radiation_wm2: float
 
 
-# Cuerpo de la petición del endpoint POST /calcular/rates-estacionales.
-# Contiene el trazado geográfico, el conductor y la configuración
-# de segmentación y escenarios. Es el único punto de entrada del cálculo.
-class CalculoRequest(BaseModel):
-    coordenadas:         List[dict]
-    conductor:           ConductorInput
-    escenarios:          Optional[List[ScenarioInput]] = None
-    paso_segmentacion_m: float = 500.0
-    usar_apoyos_reales:  bool  = False
-    usar_dem:            bool  = True
+class RateCalculationRequestDTO(BaseModel):
+    """Cuerpo completo para POST /api/v1/rates.
+    Punto de entrada único para el cálculo IEEE 738."""
+    coordinates:     List[dict]
+    conductor:       ConductorDTO
+    scenarios:       Optional[List[MeteoScenarioDTO]] = None
+    segment_step_m:  float = 500.0
+    use_real_spans:  bool  = False
+    use_dem:         bool  = True
 
 
-# Calculos: respuesta
+# DTOs de respuesta: POST /api/v1/rates
 
-# Condiciones meteorológicas del escenario aplicado en un tramo concreto.
-# Anidado dentro de DetalleTramo para que el cliente pueda saber
-# exactamente con qué inputs se calculó cada ampacidad.
-class DetalleEscenario(BaseModel):
-    temp_amb_c:    float
-    vel_viento_ms: float
-    radiacion_wm2: float
-
-
-# Resultado completo del cálculo IEEE 738 para un tramo y un escenario.
-# Incluye los flujos de calor (qc, qr, qs), la resistencia interpolada
-# y el modo de convección determinado por la velocidad del viento.
-# Anidado dentro de TramoResult.detalles, indexado por estación.
-class DetalleTramo(BaseModel):
-    ampacidad_a:     float
-    qc_wm:           float
-    qr_wm:           float
-    qs_wm:           float
-    r_tc_ohm_m:      float
-    modo_conveccion: str
-    altitud_m:       float
-    escenario:       DetalleEscenario
+class AppliedScenarioDTO(BaseModel):
+    """Condiciones meteorológicas del escenario aplicadas a un segmento.
+    Anidado dentro de SegmentDetailDTO para la trazabilidad del cálculo."""
+    temp_amb_c:          float
+    wind_speed_ms:       float
+    solar_radiation_wm2: float
 
 
-# Resultado de un tramo individual del trazado.
-# Contiene su geometría (inicio, medio, fin), longitud, altitud media
-# y los rates calculados para cada estación, tanto resumidos (rates)
-# como con detalle completo (detalles). El rate_diseno_a es el mínimo
-# de los cuatro escenarios, que es el valor limitante para el diseño.
-# Usado como elemento de la lista CalculoResponse.tramos.
-class TramoResult(BaseModel):
-    id_tramo:      str
-    longitud_km:   float
-    altitud_m:     float
-    punto_medio:   PuntoGeo
-    punto_inicio:  PuntoGeo
-    punto_fin:     PuntoGeo
+class SegmentDetailDTO(BaseModel):
+    """Resultado completo IEEE 738 para un segmento y un escenario estacional.
+    Incluye flujos de calor (qc, qr, qs), resistencia interpolada,
+    y modo de convección. Anidado en SegmentResultDTO.details, indexado por Season."""
+    ampacity_a:  float
+    qc_wm:       float
+    qr_wm:       float
+    qs_wm:       float
+    r_tc_ohm_m:  float
+    conv_mode:   str
+    elevation_m: float
+    scenario:    AppliedScenarioDTO
+
+
+class SegmentResultDTO(BaseModel):
+    """Resultado completo para un segmento individual del trazado.
+    design_rate_a es el mínimo de los cuatro escenarios — el valor limitante."""
+    segment_id:    str
+    length_km:     float
+    elevation_m:   float
+    mid_point:     GeoPointDTO
+    start_point:   GeoPointDTO
+    end_point:     GeoPointDTO
     rates:         Dict[Season, float]
-    detalles:      Dict[Season, DetalleTramo]
-    rate_diseno_a: float
+    details:       Dict[Season, SegmentDetailDTO]
+    design_rate_a: float
 
 
-# Metadatos del trazado procesado: longitud total, número de puntos,
-# fuente de altitud usada (excel_z / open_meteo_dem / sin_altitud),
-# modo de segmentación aplicado y rangos de altitud.
-# bbox y tramos_largos son opcionales porque solo se incluyen
-# cuando la validación los detecta (trazado anómalo o vanos largos).
-# Anidado en CalculoResponse.info_trazado.
-class InfoTrazado(BaseModel):
-    longitud_km:       float
-    n_puntos:          int
-    fuente_altitud:    str
-    modo_segmentacion: str
-    altitud_min_m:     float
-    altitud_max_m:     float
-    altitud_media_m:   float
-    bbox:              Optional[dict] = None
-    tramos_largos:     Optional[List[dict]] = None
-    autocruces:        Optional[List[dict]] = None
+class RouteInfoDTO(BaseModel):
+    """Metadatos del trazado: longitud, fuente de elevación, modo de segmentación, rangos de elevación."""
+    length_km:        float
+    n_points:         int
+    elevation_source: str
+    segment_mode:     str
+    min_elevation_m:  float
+    max_elevation_m:  float
+    avg_elevation_m:  float
+    bbox:             Optional[dict]       = None
+    long_spans:       Optional[List[dict]] = None
+    self_intersects:  Optional[List[dict]] = None
 
 
-# Respuesta completa del endpoint POST /calcular/rates-estacionales.
-# Devuelve el resultado por tramo, los rates mínimos por estación
-# (rates_por_estacion) y el rate de diseño global de la línea
-# (rate_linea_diseno_a), que es el mínimo de todos los tramos
-# en todos los escenarios. Las advertencias_validacion contienen
-# avisos no bloqueantes detectados durante la validación del trazado.
-class CalculoResponse(BaseModel):
-    n_tramos:                int
-    conductor:               ConductorInput
-    tramos:                  List[TramoResult]
-    rate_linea_diseno_a:     float
-    rates_por_estacion:      Dict[Season, float]
-    info_trazado:            InfoTrazado
-    advertencias_validacion: List[str]
+class RateCalculationResponseDTO(BaseModel):
+    """Respuesta completa para POST /api/v1/rates.
+    id: UUID que identifica este resultado — usado por GET /api/v1/rates/{id}.
+    design_rate_a: mínimo global — el peor segmento en el peor escenario."""
+    id:              str
+    n_segments:      int
+    conductor:       ConductorDTO
+    segments:        List[SegmentResultDTO]
+    design_rate_a:   float
+    rates_by_season: Dict[Season, float]
+    route_info:      RouteInfoDTO
+    warnings:        List[str]
 
 
-# Climatología: respuesta
+# DTOs de respuesta: GET /api/v1/climate/percentiles
 
-# Percentiles estadísticos de temperatura, viento y radiación solar
-# para una estación concreta, calculados sobre el periodo histórico
-# configurado (por defecto 1990-2023).
-# Anidado en PercentilesResponse.percentiles, indexado por Season.
-# Se construye a partir de PercentilesEstacionales (infrastructure/cache/
-# climate_processor.py) y se serializa aquí para la respuesta HTTP.
-class PercentilesEstacionResponse(BaseModel):
+class SeasonalPercentilesDTO(BaseModel):
+    """Percentiles de una estación dentro de ClimatePercentilesResponseDTO.
+    Sub-objeto anidado — no es un recurso independiente."""
     temp_p10_c:        float
     temp_p50_c:        float
     temp_p90_c:        float
-    viento_p10_ms:     float
-    viento_p50_ms:     float
-    viento_p90_ms:     float
-    radiacion_p50_wm2: float
-    radiacion_p90_wm2: float
-    n_horas:           int
-    fuente:            str
-    anios_cubiertos:   str
+    wind_p10_ms:       float
+    wind_p50_ms:       float
+    wind_p90_ms:       float
+    radiation_p50_wm2: float
+    radiation_p90_wm2: float
+    n_hours:           int
+    source:            str
+    years_covered:     str
 
 
-# Respuesta del endpoint GET /climatologia/percentiles.
-# Agrupa los percentiles de las cuatro estaciones para un punto
-# geográfico concreto. El campo fuente indica si los datos provienen
-# de Open-Meteo (ERA5) o NASA POWER (MERRA-2), según el parámetro
-# de consulta recibido.
-class PercentilesResponse(BaseModel):
-    fuente:      str
-    punto:       PuntoGeo
-    percentiles: Dict[Season, PercentilesEstacionResponse]
+class ClimatePercentilesResponseDTO(BaseModel):
+    """Respuesta para GET /api/v1/climate/percentiles.
+    Agrupa los percentiles de las cuatro estaciones en un punto geográfico."""
+    source:      str
+    point:       GeoPointDTO
+    percentiles: Dict[Season, SeasonalPercentilesDTO]
 
 
-# DEM: respuesta
+# DTOs de respuesta: GET /api/v1/elevation 
 
-# Respuesta del endpoint GET /dem/altitud.
-# Devuelve la altitud en metros de un punto concreto consultado
-# contra Open-Meteo Elevation API (con fallback a Open-Topo-Data).
-# Se usa principalmente para debug y preview desde el frontend,
-# ya que el enriquecimiento masivo del trazado lo gestiona
-# internamente dem_cache.py sin pasar por este endpoint.
-class AltitudResponse(BaseModel):
-    lat:       float
-    lon:       float
-    altitud_m: float
+class ElevationResponseDTO(BaseModel):
+    """Respuesta para GET /api/v1/elevation.
+    Uso principal: previsualización desde el frontend mientras se dibuja el trazado."""
+    lat:         float
+    lon:         float
+    elevation_m: float
+
+
+# DTOs de Conductores
+
+class ConductorCreateDTO(BaseModel):
+    """Cuerpo de la petición para POST /api/v1/conductors y PUT /api/v1/conductors/{id}."""
+    name:           str
+    description:    Optional[str] = None
+    diameter_mm:    float
+    r_ac_75_ohm_km: float
+    r_ac_25_ohm_km: float
+    emissivity:     float = 0.5
+    absorptivity:   float = 0.5
+    max_temp_c:     float = 90.0
+
+
+class ConductorResponseDTO(BaseModel):
+    """Respuesta de conductor. Incluye id y marcas de tiempo generadas por el servidor."""
+    id:             str
+    name:           str
+    description:    Optional[str]
+    diameter_mm:    float
+    r_ac_75_ohm_km: float
+    r_ac_25_ohm_km: float
+    emissivity:     float
+    absorptivity:   float
+    max_temp_c:     float
+    created_at:     str
+    updated_at:     str
+
+    class Config:
+        from_attributes = True
+
+
+# DTOs de Líneas
+
+class LineCreateDTO(BaseModel):
+    """Cuerpo de la petición para POST /api/v1/lines y PUT /api/v1/lines/{id}.
+    coordinates: lista de {lat, lon} — también acepta {lat, lng}."""
+    name:        str
+    description: Optional[str] = None
+    coordinates: List[dict]
+
+
+class LineResponseDTO(BaseModel):
+    """Respuesta de línea. geometry_geojson es el trazado listo para Leaflet."""
+    id:               str
+    name:             str
+    description:      Optional[str]
+    length_km:        Optional[float]
+    geometry_geojson: dict
+    created_at:       str
+    updated_at:       str
+
+    class Config:
+        from_attributes = True
+
+
+# DTOs de Casos de Estudio
+
+class MeteoScenarioCreateDTO(BaseModel):
+    """Escenario meteorológico anidado dentro de StudyCaseCreateDTO."""
+    season:              Season
+    temp_amb_c:          float
+    wind_speed_ms:       float
+    wind_angle_deg:      float = 90.0
+    solar_radiation_wm2: float
+
+
+class StudyCaseCreateDTO(BaseModel):
+    """Cuerpo de la petición para POST /api/v1/study-cases y PUT /api/v1/study-cases/{id}.
+    scenarios es opcional — si se omite, el cálculo usa DEFAULT_SCENARIOS."""
+    name:           str
+    description:    Optional[str] = None
+    line_id:        str
+    conductor_id:   str
+    segment_step_m: float = 500.0
+    use_real_spans: bool  = False
+    use_dem:        bool  = True
+    scenarios:      Optional[List[MeteoScenarioCreateDTO]] = None
+
+
+class MeteoScenarioResponseDTO(BaseModel):
+    """Escenario meteorológico dentro de StudyCaseResponseDTO."""
+    id:                  str
+    season:              Season
+    temp_amb_c:          float
+    wind_speed_ms:       float
+    wind_angle_deg:      float
+    solar_radiation_wm2: float
+
+    class Config:
+        from_attributes = True
+
+
+class StudyCaseResponseDTO(BaseModel):
+    """Respuesta de caso de estudio con escenarios anidados."""
+    id:             str
+    name:           str
+    description:    Optional[str]
+    line_id:        str
+    conductor_id:   str
+    segment_step_m: float
+    use_real_spans: bool
+    use_dem:        bool
+    scenarios:      List[MeteoScenarioResponseDTO]
+    created_at:     str
+    updated_at:     str
+
+    class Config:
+        from_attributes = True
+
+
+# DTOs de Autenticación
+
+class RegisterRequestDTO(BaseModel):
+    """Cuerpo de la petición para POST /api/v1/auth/register."""
+    email:    str
+    password: str
+
+
+class LoginRequestDTO(BaseModel):
+    """Cuerpo de la petición para POST /api/v1/auth/login."""
+    email:    str
+    password: str
+
+
+class TokenResponseDTO(BaseModel):
+    """Respuesta de inicio de sesión. El frontend guarda access_token en localStorage
+    y lo envía como: Authorization: Bearer <token>"""
+    access_token: str
+    token_type:   str = "bearer"
+    user_id:      str
+    email:        str

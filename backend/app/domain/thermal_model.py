@@ -1,42 +1,11 @@
-import math
 import datetime
-from dataclasses import dataclass
 from typing import Literal
 
-# pypacity imports
 from cable import cable as cable_module
 from case  import case  as case_module
 from ieee738 import ieee738 as ieee738_module
 
-
-@dataclass
-class ConductorParams:
-    diametro_mm:      float
-    r_ac_75_ohm_km:   float
-    r_ac_25_ohm_km:   float
-    emisividad:       float
-    absortividad:     float
-    temp_max_c:       float
-
-
-@dataclass
-class MeteoParams:
-    temp_amb_c:           float
-    vel_viento_ms:        float
-    angulo_viento_deg:    float
-    radiacion_solar_wm2:  float
-    altitud_m:            float = 0.0
-
-
-@dataclass
-class RateResult:
-    ampacidad_a:       float
-    temp_conductor_c:  float
-    qc_wm:             float
-    qr_wm:             float
-    qs_wm:             float
-    r_tc_ohm_m:        float
-    modo_conveccion:   Literal["forzada_baja", "forzada_alta", "natural"]
+from app.domain.entities import Conductor, MeteoConditions, SegmentRating
 
 
 def _dia_del_anio() -> int:
@@ -45,12 +14,12 @@ def _dia_del_anio() -> int:
 
 class IEEE738Calculator:
 
-    def _build_cable(self, conductor: ConductorParams) -> cable_module.Cable:
-        """Traduce ConductorParams al objeto Cable de pypacity."""
+    def _build_cable(self, conductor: Conductor) -> cable_module.Cable:
+        """Traduce Conductor al objeto Cable de pypacity."""
         cab = cable_module.Cable()
         cab.Cstring  = "custom"
         cab.D        = conductor.diametro_mm
-        cab.d        = conductor.diametro_mm * 0.15   # hilo externo ~15 % del diámetro total
+        cab.d        = conductor.diametro_mm * 0.15
         cab.TLO      = 25.0
         cab.THI      = 75.0
         cab.TCDRMAX  = conductor.temp_max_c
@@ -62,43 +31,39 @@ class IEEE738Calculator:
 
     def _build_case(
         self,
-        meteo: MeteoParams,
+        meteo: MeteoConditions,
         latitud_deg: float,
         azimut_linea_deg: float,
         temp_max_c: float,
     ) -> case_module.Case:
-        """Traduce MeteoParams + parámetros geográficos al objeto Case de pypacity."""
+        """Traduce MeteoConditions + parámetros geográficos al objeto Case de pypacity."""
         cas = case_module.Case()
-        cas.demo(2)  # 2 = cálculo estacionario (ampacidad)
+        cas.demo(2)
 
         cas.TAMB           = meteo.temp_amb_c
         cas.VWIND          = max(meteo.vel_viento_ms, 0.01)
         cas.WINDANG_DEG    = meteo.angulo_viento_deg
         cas.CDR_ELEV       = float(meteo.altitud_m or 0.0)
-
         cas.SOLAR          = 1
         cas.SolarRadiation = float(meteo.radiacion_solar_wm2 or 0.0)
-
         cas.CDR_LAT_DEG    = latitud_deg
         cas.NDAY           = _dia_del_anio()
-        cas.SUN_TIME       = 14       # hora solar pico conservadora
-        cas.A3             = 0        # atmósfera limpia
-        cas.Ns             = 1.0      # ratio de claridad estándar
-        cas.ALBEDO         = 0.2      # suelo/urbano
-
+        cas.SUN_TIME       = 14
+        cas.A3             = 0
+        cas.Ns             = 1.0
+        cas.ALBEDO         = 0.2
         cas.Z1_DEG         = float(azimut_linea_deg or 90.0) % 180.0
         cas.beta           = 0.0
-
         cas.TCDR           = temp_max_c
         return cas
 
     def calcular(
         self,
-        conductor: ConductorParams,
-        meteo: MeteoParams,
+        conductor: Conductor,
+        meteo: MeteoConditions,
         latitud_deg: float = 43.0,
         azimut_linea_deg: float = 90.0,
-    ) -> RateResult:
+    ) -> SegmentRating:
         cab  = self._build_cable(conductor)
         cas  = self._build_case(meteo, latitud_deg, azimut_linea_deg, conductor.temp_max_c)
 
@@ -125,7 +90,7 @@ class IEEE738Calculator:
         else:
             modo = "natural"
 
-        return RateResult(
+        return SegmentRating(
             ampacidad_a      = round(ampacidad, 1),
             temp_conductor_c = tc,
             qc_wm            = round(qc, 2),

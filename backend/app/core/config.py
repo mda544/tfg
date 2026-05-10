@@ -9,16 +9,31 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # CORS
-    cors_origins: List[str] = ["*"]
+    # API — raramente cambian, pueden tener default
+    api_title:       str = "Pypacity API"
+    api_version:     str = "1.0.0"
+    api_description: str = "Seasonal static ampacity rating of overhead lines (IEEE 738)."
 
-    # Caché en disco
-    climate_cache_dir: str = "climate_cache"
-    dem_cache_dir: str = "dem_cache"
+    # Base de datos
+    database_url: str
 
-    # Rango histórico por defecto para percentiles
+    # JWT
+    jwt_secret:      str
+    jwt_algorithm:   str = "HS256"
+    jwt_expires_min: int = 1440
+
+    # CORS 
+    cors_origins: List[str]
+
+    # Rango histórico — parámetros de dominio
     anio_inicio_default: int = 1990
-    anio_fin_default: int = 2023
+    anio_fin_default:    int = 2023
+
+    # Timeouts para APIs externas
+    openmeteo_timeout:    int = 120
+    nasa_timeout:         int = 120
+    dem_timeout:          int = 15
+    dem_fallback_timeout: int = 10
 
 
 settings = Settings()

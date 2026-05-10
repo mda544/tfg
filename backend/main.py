@@ -1,21 +1,43 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import calculos, climate, dem
+from app.api.routes import auth, rates, climate, elevation, conductors, lines, study_cases
+from app.core.config import settings
+from app.infrastructure.database import engine, Base
+from app.infrastructure import orm_models
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    await engine.dispose()
+
 
 app = FastAPI(
-    title="Pypacity API",
-    version="1.0.0",
+    title       = settings.api_title,
+    version     = settings.api_version,
+    description = settings.api_description,
+    lifespan    = lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins     = settings.cors_origins,
+    allow_credentials = True,
+    allow_methods     = ["*"],
+    allow_headers     = ["*"],
 )
 
-app.include_router(calculos.router, prefix="/api/v1/calcular")
-app.include_router(climate.router,  prefix="/api/v1/climatologia")
-app.include_router(dem.router,      prefix="/api/v1/dem")
+# Público
+app.include_router(auth.router,        prefix="/api/v1/auth")
+
+# Protegidos
+app.include_router(conductors.router,  prefix="/api/v1/conductors")
+app.include_router(lines.router,       prefix="/api/v1/lines")
+app.include_router(study_cases.router, prefix="/api/v1/study-cases")
+app.include_router(rates.router,       prefix="/api/v1/rates")
+app.include_router(climate.router,     prefix="/api/v1/climate")
+app.include_router(elevation.router,   prefix="/api/v1/elevation")
