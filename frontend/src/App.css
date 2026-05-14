@@ -1,194 +1,232 @@
-.app-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
   font-family:
     system-ui,
     -apple-system,
     sans-serif;
-  background-color: #f4f6f8;
+  background: #f0f2f5;
+  color: #111827;
+}
+
+/* ── Header ── */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 52px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-icon {
+  font-size: 1.3rem;
+}
+.header-brand h1 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.btn-logout {
+  padding: 5px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #374151;
+}
+.btn-logout:hover {
+  background: #f9fafb;
+}
+
+/* ── Layout principal ── */
+.app-container {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 
-header {
-  text-align: center;
-  margin-bottom: 30px;
-  color: #2c3e50;
-}
-
-/* El truco para ponerlos lado a lado */
 .contenido-principal {
   display: flex;
   flex-direction: row;
+  gap: 16px;
+  padding: 16px;
+  flex: 1;
+  max-width: 1400px;
   width: 100%;
-  max-width: 1200px;
-  gap: 20px; /* Espacio entre el panel y el mapa */
+  margin: 0 auto;
 }
 
-/* Estilos del panel de la izquierda */
+/* ── Panel izquierdo ── */
 .panel-configuracion {
-  width: 300px;
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 320px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 4px;
 }
 
-.panel-configuracion h2 {
-  font-size: 1.2rem;
-  margin-top: 0;
-  color: #34495e;
-  border-bottom: 2px solid #3498db;
-  padding-bottom: 10px;
-}
-
-.grupo-input {
+.panel-section {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  text-align: left;
+  gap: 10px;
 }
 
-.grupo-input label {
-  font-size: 0.9rem;
+.panel-section h2 {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* ── Controles ── */
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.field-label {
+  font-size: 0.8rem;
   font-weight: 600;
-  margin-bottom: 5px;
-  color: #555;
+  color: #374151;
+  display: block;
 }
 
-.grupo-input input {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 1rem;
+.select-field {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #111827;
+  background: #fff;
+}
+.select-field:focus {
+  outline: none;
+  border-color: #2563eb;
 }
 
-/* Estilos del mapa a la derecha */
-.mapa-wrapper {
-  flex-grow: 1; /* El mapa ocupa todo el espacio restante */
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+.hint-text {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.5;
 }
 
-/* Estilos del botón y estado */
+/* ── Estado mapa ── */
 .estado-mapa {
-  margin-top: 10px;
-  font-weight: bold;
-  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 500;
 }
-
 .estado-mapa .ok {
-  color: #27ae60;
+  color: #15803d;
+  margin: 0;
 }
 .estado-mapa .espera {
-  color: #e67e22;
+  color: #d97706;
+  margin: 0;
+}
+
+.clima-banner {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #bfdbfe;
+}
+
+.error-banner {
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 0.82rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+}
+
+/* ── Botones ── */
+.btn-secondary {
+  padding: 7px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.82rem;
+  color: #374151;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.btn-secondary:hover {
+  background: #f9fafb;
 }
 
 .btn-calcular {
-  background-color: #3498db;
-  color: white;
+  width: 100%;
+  padding: 13px;
+  background: #2563eb;
+  color: #fff;
   border: none;
-  padding: 12px;
-  font-size: 1rem;
-  font-weight: bold;
-  border-radius: 6px;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.3s;
-  margin-top: auto; /* Empuja el botón al fondo del panel */
+  transition:
+    background 0.15s,
+    opacity 0.15s;
+  margin-top: 4px;
 }
-
 .btn-calcular:hover:not(:disabled) {
-  background-color: #2980b9;
+  background: #1d4ed8;
 }
-
 .btn-calcular:disabled {
-  background-color: #bdc3c7;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Para que se vea bien en móviles (mapa arriba, panel abajo) */
-@media (max-width: 768px) {
-  .contenido-principal {
-    flex-direction: column-reverse;
-  }
-  .panel-configuracion {
-    width: 100%;
-    box-sizing: border-box;
-  }
-}
-
-/* Resaltar el valor actual */
-.grupo-input label strong {
-  color: #3498db;
-  float: right;
-}
-
-/* Estilos para que el slider y la caja */
-.controles-duales {
+/* ── Panel derecho (mapa) ── */
+.mapa-wrapper {
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 5px;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
-
-.controles-duales input[type="range"] {
-  flex-grow: 1;
-  cursor: pointer;
-}
-
-.controles-duales input[type="number"] {
-  width: 70px;
-  padding: 5px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  text-align: right;
-  font-family: monospace;
-  font-size: 14px;
-}
-
-/* Estilos para las advertencias de validación */
-.texto-error {
-  color: #e74c3c; /* Rojo intenso */
-  font-size: 0.85rem;
-  margin-top: 4px;
-  font-weight: 500;
-  animation: aparecer 0.2s ease-in-out;
-}
-
-.input-error {
-  border: 2px solid #e74c3c !important;
-  background-color: #fdf0ed;
-}
-
-@keyframes aparecer {
-  from {
-    opacity: 0;
-    transform: translateY(-3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.geometry-uploader {
-  border: 1.5px dashed var(--color-border, #ccc);
-  border-radius: 8px;
-  padding: 12px 16px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-  margin-bottom: 12px;
-  user-select: none;
-}
-.geometry-uploader:hover { border-color: #3388ff; background: #f0f6ff; }
-.geometry-uploader.error { border-color: #e24b4a; }
-.uploader-icon { font-size: 20px; display: block; margin-bottom: 4px; }
-.uploader-label { margin: 0; font-size: 13px; color: #555; }
-.uploader-hint  { margin: 4px 0 0; font-size: 11px; color: #999; }
-.uploader-mensaje.ok    { color: #1D9E75; font-size: 12px; margin: 4px 0 0; }
-.uploader-mensaje.error { color: #e24b4a; font-size: 12px; margin: 4px 0 0; }

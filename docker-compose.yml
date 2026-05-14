@@ -1,22 +1,38 @@
 version: "3.8"
 
 services:
-  backend:
-    image: python:3.10-slim
-    working_dir: /backend
+
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB:       ampacitygis
+      POSTGRES_USER:     admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
     volumes:
-      - ./backend:/backend
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d ampacitygis"]      
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend        
+    working_dir: /backend
+    env_file:
+      - ./backend/.env          
     ports:
       - "8000:8000"
-    environment:
-      - PYTHONPATH=/backend
-    command: >
-      bash -c "pip install -r requirements.txt &&
-               uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    depends_on:
+      db:
+        condition: service_healthy   
 
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend       
     working_dir: /app
     volumes:
       - ./frontend:/app
@@ -27,16 +43,8 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - VITE_API_URL=http://localhost:8000
     command: npm run dev -- --host 0.0.0.0
-  db:
-    image: postgis/postgis:16-3.4
-    environment:
-      POSTGRES_DB: pypacity
-      POSTGRES_USER: pypacity
-      POSTGRES_PASSWORD: pypacity
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

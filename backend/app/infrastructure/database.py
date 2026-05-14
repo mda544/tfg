@@ -1,10 +1,8 @@
-# app/infrastructure/database.py
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from app.core.config import settings
 
-DATABASE_URL = "postgresql+asyncpg://pypacity:pypacity@db:5432/pypacity"
-
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(settings.database_url, echo=False)
 
 AsyncSessionLocal = sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False

@@ -25,7 +25,7 @@ class UserORM(Base):
     __tablename__ = "users"
 
     id:         Mapped[str]      = mapped_column(UUID(as_uuid=False), primary_key=True, default=_uuid)
-    email:      Mapped[str]      = mapped_column(String(255), unique=True, nullable=False)
+    username:   Mapped[str]      = mapped_column(String(64), unique=True, nullable=False)
     password:   Mapped[str]      = mapped_column(String(255), nullable=False)  # bcrypt hash
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -125,6 +125,7 @@ class RateResultORM(Base):
     route_info:         Mapped[dict]     = mapped_column(JSONB, nullable=False)
     warnings:           Mapped[list]     = mapped_column(JSONB, nullable=True)
     conductor_snapshot: Mapped[dict]     = mapped_column(JSONB, nullable=False)
+    segments_data:      Mapped[list]     = mapped_column(JSONB, nullable=False)
     created_at:         Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     study_case: Mapped["StudyCaseORM"]     = relationship(back_populates="results")

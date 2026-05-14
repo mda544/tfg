@@ -1,396 +1,245 @@
-import { useState, useRef } from "react";
-import MapaTrazado from "./components/MapaTrazado";
+import { useState, useRef, useCallback } from "react";
+import { useAuth } from "./auth/useAuth";
+import MapaTrazado from "./features/map/MapaTrazado";
 import GeometryUploader from "./components/GeometryUploader";
-import PanelEscenariosEstacionales, {
-  ESCENARIOS_DEFAULT,
-} from "./components/PanelEscenariosEstacionales";
+import PanelEscenariosEstacionales from "./features/scenarios/PanelEscenariosEstacionales";
 import PanelValidacion from "./components/PanelValidacion";
-import PanelResultadosRates from "./components/PanelResultadosRates";
-import "./App.css";
+import PanelResultadosRates from "./features/results/PanelResultadosRates";
+import ConductorSelector from "./features/conductor/ConductorSelector";
+import { useConductors } from "./hooks/useConductors";
+import { useClimateSync } from "./hooks/useClimateSync";
+import { useRateCalculation } from "./hooks/useRateCalculation";
 import {
   validarTrazado,
   densificarTrazado,
-  normalizarLeafletCoords,
+  normalizarALatLon,
 } from "./utils/geometryValidator";
-import { CATALOGO_CABLES } from "./constants/catalogoCables";
-import {
-  enviarCalculoRendimiento,
-  obtenerClimatologiaHistorica,
-} from "./services/api";
+import { ESCENARIOS_DEFAULT } from "./features/scenarios/scenarioDefaults";
+import "./App.css";
 
-function App() {
+export default function App() {
   const mapaRef = useRef(null);
+  const { logout, session } = useAuth();
 
+  // Estado de trazado
   const [datosMapa, setDatosMapa] = useState(null);
-  const [escenarios, setEscenarios] = useState(ESCENARIOS_DEFAULT);
-  const [tipoCable, setTipoCable] = useState("LA-280");
-  const [configCable, setConfigCable] = useState({
-    ...CATALOGO_CABLES["LA-280"],
-    altura_cable: 20,
-  });
-  const [errorAltura, setErrorAltura] = useState("");
-  const [resultadosCalculo, setResultadosCalculo] = useState(null);
-  const [calculando, setCalculando] = useState(false);
   const [validacion, setValidacion] = useState(null);
-  const [usarDEM, setUsarDEM] = useState(true);
 
-  const [cargandoClima, setCargandoClima] = useState(false);
+  // Estado de configuración
+  const [escenarios, setEscenarios] = useState(ESCENARIOS_DEFAULT);
+  const [useDem, setUseDem] = useState(true);
   const [fuenteClima, setFuenteClima] = useState("openmeteo");
-  // Control del mapa
 
-  const manejarNuevosDibujos = (datos) => {
-    // Geoman ya entrega coords normalizadas desde el nuevo onCreate,
-    // pero por seguridad normalizamos igualmente
-    const coordsPlanas = normalizarLeafletCoords(
-      Array.isArray(datos.coordenadas)
-        ? datos.coordenadas
-        : [datos.coordenadas],
-    );
+  // Conductor seleccionado (objeto completo del backend)
+  const { conductors } = useConductors();
+  const [conductorId, setConductorId] = useState(null);
+  const conductor = conductors.find((c) => c.id === conductorId) ?? conductors[0];
 
-    // Auto-segmentación: inserta puntos intermedios en vanos > 500 m
-    const coordsDensas = densificarTrazado(coordsPlanas, 500);
+  // Hooks de negocio
+  const { sync: syncClima, loading: cargandoClima } = useClimateSync();
+  const {
+    calculate,
+    resultado,
+    loading: calculando,
+    error: errorCalculo,
+  } = useRateCalculation();
 
-    const datosFinal = { ...datos, coordenadas: coordsDensas };
+  // Helpers de trazado
+  const procesarCoordenadas = useCallback(async (rawCoords) => {
+    const normalizadas = normalizarALatLon(rawCoords);
+    const densas = densificarTrazado(normalizadas, 500);
+    setValidacion(validarTrazado(densas));
+    return densas;
+  }, []);
 
-    setDatosMapa(datosFinal);
-    setValidacion(validarTrazado(coordsDensas));
+  const sincronizarClima = useCallback(
+    async (coordenadas, fuente) => {
+      const nuevosEscenarios = await syncClima(
+        coordenadas,
+        fuente ?? fuenteClima,
+      );
+      if (nuevosEscenarios) setEscenarios(nuevosEscenarios);
+    },
+    [syncClima, fuenteClima],
+  );
 
-    mapaRef.current?.dibujarGeometria(datosFinal);
+  // Eventos del mapa
+  const manejarNuevosDibujos = useCallback(
+    async (datos) => {
+      const densas = await procesarCoordenadas(datos.coordenadas);
+      const feature = { ...datos, coordenadas: densas };
+      setDatosMapa(feature);
+      mapaRef.current?.dibujarGeometria(feature);
+      sincronizarClima(densas);
+    },
+    [procesarCoordenadas, sincronizarClima],
+  );
 
-    sincronizarClimaHistorico(coordsDensas);
-  };
+  const manejarGeometriaCargada = useCallback(
+    async (featureOArray) => {
+      const feature = Array.isArray(featureOArray)
+        ? featureOArray[0]
+        : featureOArray;
+      const densas = await procesarCoordenadas(feature.coordenadas);
+      const featureFinal = { ...feature, coordenadas: densas };
+      setDatosMapa(featureFinal);
+      mapaRef.current?.dibujarGeometria(featureFinal);
+      sincronizarClima(densas);
+    },
+    [procesarCoordenadas, sincronizarClima],
+  );
 
-  const manejarBorrado = () => {
+  const manejarBorrado = useCallback(() => {
     setDatosMapa(null);
     setValidacion(null);
-  };
+  }, []);
 
-  const borrarTodoElMapa = () => {
+  const borrarTodoElMapa = useCallback(() => {
     mapaRef.current?.limpiarTodo();
     setDatosMapa(null);
-    setResultadosCalculo(null);
     setValidacion(null);
-  };
+  }, []);
 
-  const manejarGeometriaCargada = (featureOArray) => {
-    const feature = Array.isArray(featureOArray)
-      ? featureOArray[0]
-      : featureOArray;
-
-    // 1. Guardamos los datos del Excel en la memoria de React
-    setDatosMapa(feature);
-
-    // 2. Validamos la ruta
-    setValidacion(validarTrazado(feature.coordenadas));
-
-    mapaRef.current?.dibujarGeometria(feature);
-
-    sincronizarClimaHistorico(feature.coordenadas);
-  };
-
-  // Control del cable
-
-  const manejarSeleccionCable = (e) => {
-    const modelo = e.target.value;
-    setTipoCable(modelo);
-    setConfigCable((prev) => ({ ...prev, ...CATALOGO_CABLES[modelo] }));
-  };
-
-  const manejarCambioAltura = (e) => {
-    const { value } = e.target;
-    const n = value === "" ? "" : parseFloat(value);
-    setErrorAltura(
-      isNaN(n) && value !== ""
-        ? "Debe ser un número válido."
-        : value !== "" && (n < 10 || n > 100)
-          ? "La altura debe estar entre 10 y 100 m."
-          : "",
-    );
-    setConfigCable((prev) => ({ ...prev, altura_cable: value }));
-  };
-
-  // Historicos
-
-  const sincronizarClimaHistorico = async (coordenadas, fuenteOverride) => {
-    if (!coordenadas || coordenadas.length === 0) return;
-
-    const mid = coordenadas[Math.floor(coordenadas.length / 2)];
-    const lat = mid.lat;
-    const lon = mid.lng !== undefined ? mid.lng : mid.lon;
-
-    const fuenteAConsultar = fuenteOverride || fuenteClima;
-
-    setCargandoClima(true);
-    try {
-      // Le pasamos la fuente a la API
-      const historico = await obtenerClimatologiaHistorica(
-        lat,
-        lon,
-        fuenteAConsultar,
-      );
-      if (!historico) throw new Error("El servidor no devolvió datos válidos.");
-
-      const nuevosEscenarios = {};
-      Object.entries(historico).forEach(([est, p]) => {
-        nuevosEscenarios[est] = {
-          temp: p.temp_p90_c,
-          viento: p.viento_p10_ms,
-          radiacion: p.radiacion_p90_wm2,
-          angulo: 90,
-        };
-      });
-
-      setEscenarios(nuevosEscenarios);
-    } catch (err) {
-      console.error("[Frontend] Fallo en auto-ajuste:", err);
-      alert(
-        `⚠️ No se pudo cargar el clima histórico de ${fuenteAConsultar}.\nMotivo: ${err.message}`,
-      );
-    } finally {
-      setCargandoClima(false);
-    }
-  };
-
-  /**
-   * Si ya hay una linea dibujada y se cambia la fuente se calcula de nuevo automaticamente.
-   * @param {*} e
-   */
-  const manejarCambioFuenteClima = (e) => {
-    const nuevaFuente = e.target.value;
-    setFuenteClima(nuevaFuente);
-    // Si ya tenemos una línea cargada, recargamos el clima con el nuevo satélite
-    if (datosMapa && datosMapa.coordenadas) {
-      sincronizarClimaHistorico(datosMapa.coordenadas, nuevaFuente);
-    }
-  };
+  // Cambio de fuente climática
+  const manejarCambioFuenteClima = useCallback(
+    (e) => {
+      const nueva = e.target.value;
+      setFuenteClima(nueva);
+      if (datosMapa?.coordenadas)
+        sincronizarClima(datosMapa.coordenadas, nueva);
+    },
+    [datosMapa, sincronizarClima],
+  );
 
   // Cálculo
-
-  const calcularRendimiento = async () => {
-    if (!datosMapa || validacion?.valido === false) return;
-
-    setCalculando(true);
-    setResultadosCalculo(null);
-
-    const tieneZExcel = datosMapa.coordenadas.some((c) => (c.altitud ?? 0) > 0);
-    const esFicheroReal = datosMapa.coordenadas.length > 10;
-
-    const paqueteDatos = {
+  const calcular = useCallback(async () => {
+    if (!datosMapa || !conductor || validacion?.valido === false) return;
+    await calculate({
       coordenadas: datosMapa.coordenadas,
-      conductor: {
-        diametro_mm: configCable.diametro,
-        r_ac_75_ohm_km: configCable.r_ac_75,
-        r_ac_25_ohm_km: configCable.r_ac_25,
-        emisividad: configCable.emisividad,
-        absortividad: 0.5,
-        temp_max_c: configCable.temp_max,
-      },
-      escenarios: Object.entries(escenarios).map(([estacion, s]) => ({
-        estacion,
-        temp_amb_c: s.temp,
-        vel_viento_ms: s.viento,
-        angulo_viento_deg: s.angulo,
-        radiacion_solar_wm2: s.radiacion,
-      })),
-      paso_segmentacion_m: 500,
-      usar_apoyos_reales: tieneZExcel || esFicheroReal,
-      usar_dem: usarDEM && !tieneZExcel, // DEM solo si no hay Z del Excel
-    };
+      conductor,
+      escenarios,
+      useDem,
+    });
+  }, [datosMapa, conductor, escenarios, useDem, validacion, calculate]);
 
-    try {
-      // Llamada limpia usando Axios a través de nuestro servicio
-      const datos = await enviarCalculoRendimiento(paqueteDatos);
-
-      setResultadosCalculo(datos);
-    } catch (error) {
-      setResultadosCalculo({ error: error.message });
-    } finally {
-      setCalculando(false);
-    }
-  };
-
-  // Render
+  const puedeCalcular =
+    Boolean(datosMapa) && validacion?.valido !== false && !calculando;
 
   return (
     <div className="app-container">
-      <header>
-        <h1>Calculadora de Rendimiento</h1>
-        <p>Define los parámetros técnicos y traza la ruta en el mapa.</p>
+      <header className="app-header">
+        <div className="header-brand">
+          <span className="header-icon">⚡</span>
+          <h1>AmpacityGIS</h1>
+        </div>
+        <div className="header-user">
+          <span>{session?.user?.username}</span>
+          <button className="btn-logout" onClick={logout}>
+            Cerrar sesión
+          </button>
+        </div>
       </header>
 
       <div className="contenido-principal">
-        {/* PANEL IZQUIERDO */}
+        {/* ── PANEL IZQUIERDO ── */}
         <aside className="panel-configuracion">
-          <h2>Ficha Técnica del Cable</h2>
+          <section className="panel-section">
+            <h2>Conductor</h2>
+            <ConductorSelector
+              selected={conductorId}
+              onChange={(c) => setConductorId(c.id)}
+            />
+          </section>
 
-          <div className="grupo-input">
-            <label style={{ fontWeight: "bold" }}>Seleccionar Conductor</label>
-            <select
-              value={tipoCable}
-              onChange={manejarSeleccionCable}
-              className="select-cable"
-            >
-              {Object.entries(CATALOGO_CABLES).map(([id, datos]) => (
-                <option key={id} value={id}>
-                  {datos.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tarjeta-resumen">
-            <p>
-              <b>Diámetro:</b> {configCable.diametro} mm
-            </p>
-            <p>
-              <b>R75:</b> {configCable.r_ac_75} Ω/km · <b>R25:</b>{" "}
-              {configCable.r_ac_25} Ω/km
-            </p>
-            <p>
-              <b>Emisividad:</b> {configCable.emisividad}
-            </p>
-            <p>
-              <b>Temp. Máxima:</b> {configCable.temp_max} °C
-            </p>
-          </div>
-
-          <div className="grupo-input">
-            <label>Altura del cable instalada (m)</label>
-            <div className="controles-duales">
-              <input
-                type="range"
-                min="10"
-                max="100"
-                value={configCable.altura_cable}
-                onChange={manejarCambioAltura}
-              />
-              <input
-                type="number"
-                value={configCable.altura_cable}
-                onChange={manejarCambioAltura}
-              />
-            </div>
-            {errorAltura && <span className="texto-error">{errorAltura}</span>}
-          </div>
-
-          {/* Toggle DEM */}
-          <div className="grupo-input dem-toggle">
-            <label className="dem-toggle-label">
+          <section className="panel-section">
+            <h2>Opciones de cálculo</h2>
+            <label className="toggle-label">
               <input
                 type="checkbox"
-                checked={usarDEM}
-                onChange={(e) => setUsarDEM(e.target.checked)}
+                checked={useDem}
+                onChange={(e) => setUseDem(e.target.checked)}
               />
-              <span>Consultar altitud DEM (Open-Meteo)</span>
+              <span>Consultar altitud DEM</span>
             </label>
-            <p className="dem-hint">
-              {usarDEM
-                ? "Se consultará la altitud de cada apoyo via API. Si el Excel tiene columna Z, se usa directamente."
+            <p className="hint-text">
+              {useDem
+                ? "Se consultará la altitud via API. Si el Excel tiene columna Z, se usa directamente."
                 : "Todos los tramos se calculan a 0 m de altitud."}
             </p>
-          </div>
 
-          {/* ¡NUEVO SELECTOR DE CLIMA! */}
-          <div className="grupo-input">
-            <label style={{ fontWeight: "bold" }}>
-              Satélite Climático (Histórico)
+            <label className="field-label" style={{ marginTop: "10px" }}>
+              Fuente climática histórica
             </label>
             <select
+              className="select-field"
               value={fuenteClima}
               onChange={manejarCambioFuenteClima}
-              className="select-cable"
             >
               <option value="openmeteo">
-                Copernicus ERA5 (Vía Open-Meteo)
+                Copernicus ERA5 (Open-Meteo) — 9 km
               </option>
-              <option value="nasa">MERRA-2 (Vía NASA POWER)</option>
+              <option value="nasa">
+                MERRA-2 (NASA POWER) — ~50 km
+              </option>
             </select>
-            <p className="dem-hint">
-              {fuenteClima === "openmeteo"
-                ? "Resolución 9km. Basado en el programa europeo Copernicus."
-                : "Resolución ~50km. Basado en satélites globales de la NASA."}
-            </p>
-          </div>
-          <GeometryUploader onGeometriaCargada={manejarGeometriaCargada} />
+          </section>
 
-          <button className="btn-limpiar" onClick={borrarTodoElMapa}>
-            🗑️ Limpiar Mapa
-          </button>
-
-          <div className="estado-mapa">
-            {datosMapa ? (
-              <p className="ok">
-                ✓ Trazado listo · {datosMapa.coordenadas.length} apoyos
-              </p>
-            ) : (
-              <p className="espera">⚠ Esperando dibujo en el mapa...</p>
-            )}
-          </div>
-
-          {cargandoClima && (
-            <div
-              style={{
-                background: "#e0f2fe",
-                color: "#0284c7",
-                padding: "10px",
-                borderRadius: "6px",
-                marginBottom: "15px",
-                fontWeight: "bold",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-              }}
-            >
-              <span className="spinner">📡</span>
-              Consultando satélite (30 años de histórico)...
+          <section className="panel-section">
+            <h2>Geometría</h2>
+            <GeometryUploader onGeometriaCargada={manejarGeometriaCargada} />
+            <button className="btn-secondary" onClick={borrarTodoElMapa}>
+              Limpiar mapa
+            </button>
+            <div className="estado-mapa">
+              {datosMapa ? (
+                <p className="ok">
+                  Trazado listo · {datosMapa.coordenadas.length} apoyos
+                </p>
+              ) : (
+                <p className="espera"> Dibuja o carga un trazado en el mapa</p>
+              )}
             </div>
-          )}
+            {cargandoClima && (
+              <div className="clima-banner">
+                Consultando datos climáticos históricos…
+              </div>
+            )}
+          </section>
 
-          <PanelEscenariosEstacionales
-            conductorRef={{
-              diametro_mm: configCable.diametro,
-              r_ac_75: configCable.r_ac_75,
-              temp_max: configCable.temp_max,
-            }}
-            escenarios={escenarios}
-            onChange={setEscenarios}
-          />
+          <section className="panel-section">
+            <h2>Escenarios estacionales</h2>
+            <PanelEscenariosEstacionales
+              conductorRef={conductor}
+              escenarios={escenarios}
+              onChange={setEscenarios}
+            />
+          </section>
 
           <PanelValidacion validacion={validacion} />
 
+          {errorCalculo && (
+            <div className="error-banner">Error: {errorCalculo}</div>
+          )}
+
           <button
             className="btn-calcular"
-            onClick={calcularRendimiento}
-            disabled={
-              !datosMapa ||
-              errorAltura !== "" ||
-              calculando ||
-              validacion?.valido === false
-            }
+            onClick={calcular}
+            disabled={!puedeCalcular}
           >
-            {calculando
-              ? usarDEM &&
-                !datosMapa?.coordenadas?.some((c) => (c.altitud ?? 0) > 0)
-                ? "⏳ Consultando DEM y calculando..."
-                : "⏳ Calculando..."
-              : "Calcular Rendimiento"}
+            {calculando ? " Calculando…" : "Calcular rates estacionales"}
           </button>
         </aside>
 
-        {/* PANEL DERECHO */}
+        {/* ── PANEL DERECHO ── */}
         <main className="mapa-wrapper">
           <MapaTrazado
             ref={mapaRef}
             onDatosDibujados={manejarNuevosDibujos}
             onDatosBorrados={manejarBorrado}
           />
-          {resultadosCalculo && (
-            <PanelResultadosRates resultado={resultadosCalculo} />
-          )}
+          {resultado && <PanelResultadosRates resultado={resultado} />}
         </main>
       </div>
     </div>
   );
 }
-
-export default App;

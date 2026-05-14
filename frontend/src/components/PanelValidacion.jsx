@@ -1,6 +1,6 @@
 import "./PanelValidacion.css";
 
-const PanelValidacion = ({ validacion }) => {
+export default function PanelValidacion({ validacion }) {
   if (!validacion) return null;
 
   const { valido, errores = [], advertencias = [], info = {} } = validacion;
@@ -26,20 +26,26 @@ const PanelValidacion = ({ validacion }) => {
         {errores.length > 0 && (
           <>
             <p className="pv-titulo">
-              {errores.length} error{errores.length > 1 ? "es" : ""} — cálculo bloqueado
+              {errores.length} error{errores.length > 1 ? "es" : ""} — cálculo
+              bloqueado
             </p>
             <ul className="pv-lista">
-              {errores.map((e, i) => <li key={i}>{e}</li>)}
+              {errores.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
             </ul>
           </>
         )}
         {advertencias.length > 0 && (
           <>
             <p className="pv-titulo pv-titulo-adv">
-              {advertencias.length} advertencia{advertencias.length > 1 ? "s" : ""}
+              {advertencias.length} advertencia
+              {advertencias.length > 1 ? "s" : ""}
             </p>
             <ul className="pv-lista pv-lista-adv">
-              {advertencias.map((a, i) => <li key={i}>{a}</li>)}
+              {advertencias.map((a, i) => (
+                <li key={i}>{a}</li>
+              ))}
             </ul>
           </>
         )}
@@ -51,6 +57,4 @@ const PanelValidacion = ({ validacion }) => {
       </div>
     </div>
   );
-};
-
-export default PanelValidacion;
+}

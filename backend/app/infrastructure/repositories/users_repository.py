@@ -16,22 +16,22 @@ class UsersRepository:
             raise NoResultFound(f"User {user_id} not found.")
         return obj
 
-    async def get_by_email(self, db: AsyncSession, email: str) -> UserORM | None:
+    async def get_by_username(self, db: AsyncSession, username: str) -> UserORM | None:
         result = await db.execute(
-            select(UserORM).where(UserORM.email == email)
+            select(UserORM).where(UserORM.username == username)
         )
         return result.scalar_one_or_none()
 
-    async def create(self, db: AsyncSession, email: str, hashed_password: str) -> UserORM:
-        obj = UserORM(email=email, password=hashed_password)
+    async def create(self, db: AsyncSession, username: str, hashed_password: str) -> UserORM:
+        obj = UserORM(username=username, password=hashed_password)
         db.add(obj)
         await db.flush()
         await db.refresh(obj)
         return obj
 
-    async def exists_by_email(self, db: AsyncSession, email: str) -> bool:
+    async def exists_by_username(self, db: AsyncSession, username: str) -> bool:
         result = await db.execute(
-            select(UserORM.id).where(UserORM.email == email)
+            select(UserORM.id).where(UserORM.username == username)
         )
         return result.scalar_one_or_none() is not None
 

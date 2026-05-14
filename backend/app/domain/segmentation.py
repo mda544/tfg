@@ -7,89 +7,90 @@ from app.domain.entities import Segment
 from app.core.utils.geo import haversine_m, calcular_azimut
 
 
-def _proyectar_linea(coordenadas: list[dict]) -> LineString:
-    puntos = [(pt["lon"], pt["lat"]) for pt in coordenadas]
-    linea_geo = LineString(puntos)
+def _project_line(coordinates: list[dict]) -> LineString:
+    points      = [(pt["lon"], pt["lat"]) for pt in coordinates]
+    line_geo    = LineString(points)
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-    return transform(transformer.transform, linea_geo)
+    return transform(transformer.transform, line_geo)
 
 
-def _punto_a_wgs84(p: Point, transformer_inv: Transformer) -> dict:
+def _to_wgs84(p: Point, transformer_inv: Transformer) -> dict:
     lon, lat = transformer_inv.transform(p.x, p.y)
     return {"lat": round(lat, 6), "lon": round(lon, 6)}
 
 
-def segmentar_trazado(
-    coordenadas: list[dict],
-    paso_m: float = 500.0,
+def segment_route(
+    coordinates: list[dict],
+    step_m:      float = 500.0,
 ) -> List[Segment]:
-    linea_proj     = _proyectar_linea(coordenadas)
-    longitud_total = linea_proj.length
-    n_tramos       = max(1, int(longitud_total / paso_m))
-    paso_real      = longitud_total / n_tramos
+    """Segmenta el trazado en tramos de longitud fija."""
+    line_proj   = _project_line(coordinates)
+    total_len   = line_proj.length
+    n_segments  = max(1, int(total_len / step_m))
+    step_real   = total_len / n_segments
 
     transformer_inv = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
-    tramos = []
+    segments = []
 
-    for i in range(n_tramos):
-        d_inicio = i * paso_real
-        d_medio  = d_inicio + paso_real / 2.0
-        d_fin    = d_inicio + paso_real
+    for i in range(n_segments):
+        d_start = i * step_real
+        d_mid   = d_start + step_real / 2.0
+        d_end   = d_start + step_real
 
-        p_ini = linea_proj.interpolate(d_inicio)
-        p_mid = linea_proj.interpolate(d_medio)
-        p_fin = linea_proj.interpolate(min(d_fin, longitud_total))
+        p_start = line_proj.interpolate(d_start)
+        p_mid   = line_proj.interpolate(d_mid)
+        p_end   = line_proj.interpolate(min(d_end, total_len))
 
-        pt_inicio = _punto_a_wgs84(p_ini, transformer_inv)
-        pt_fin    = _punto_a_wgs84(p_fin, transformer_inv)
-        azimut    = calcular_azimut(
-            pt_inicio["lat"], pt_inicio["lon"],
-            pt_fin["lat"],    pt_fin["lon"],
+        pt_start = _to_wgs84(p_start, transformer_inv)
+        pt_end   = _to_wgs84(p_end,   transformer_inv)
+        azimuth  = calcular_azimut(
+            pt_start["lat"], pt_start["lon"],
+            pt_end["lat"],   pt_end["lon"],
         )
 
-        tramos.append(Segment(
-            id           = f"T{i + 1:03d}",
-            indice       = i,
-            punto_inicio = pt_inicio,
-            punto_medio  = _punto_a_wgs84(p_mid, transformer_inv),
-            punto_fin    = pt_fin,
-            longitud_km  = round(paso_real / 1000.0, 3),
-            azimut_deg   = round(azimut, 1),
+        segments.append(Segment(
+            id          = f"T{i + 1:03d}",
+            index       = i,
+            start_point = pt_start,
+            mid_point   = _to_wgs84(p_mid, transformer_inv),
+            end_point   = pt_end,
+            length_km   = round(step_real / 1000.0, 3),
+            azimuth_deg = round(azimuth, 1),
         ))
 
-    return tramos
+    return segments
 
 
-def segmentar_por_apoyos(coordenadas: list[dict]) -> List[Segment]:
+def segment_by_spans(coordinates: list[dict]) -> List[Segment]:
     """
-    Crea un tramo por vano real entre apoyos consecutivos.
-    Usa las coordenadas del Excel directamente, incluyendo altitud Z si existe.
-    Coordenadas ya normalizadas a clave canónica 'lon'.
+    Crea un segmento por vano real entre apoyos consecutivos.
+    Coordenadas normalizadas a clave canónica 'lon'.
+    La clave de altitud es 'elevation' (normalizada en rates_service).
     """
-    tramos = []
-    for i in range(len(coordenadas) - 1):
-        p_ini        = coordenadas[i]
-        p_fin        = coordenadas[i + 1]
-        alt_ini      = p_ini.get("altitud", 0) or 0
-        alt_fin      = p_fin.get("altitud", 0) or 0
-        longitud_m   = haversine_m(p_ini, p_fin)
-        azimut       = calcular_azimut(
-            p_ini["lat"], p_ini["lon"],
-            p_fin["lat"], p_fin["lon"],
+    segments = []
+    for i in range(len(coordinates) - 1):
+        p_start    = coordinates[i]
+        p_end      = coordinates[i + 1]
+        elev_start = p_start.get("elevation", 0) or 0
+        elev_end   = p_end.get("elevation", 0) or 0
+        length_m   = haversine_m(p_start, p_end)
+        azimuth    = calcular_azimut(
+            p_start["lat"], p_start["lon"],
+            p_end["lat"],   p_end["lon"],
         )
 
-        tramos.append(Segment(
-            id           = f"V{i + 1:03d}",
-            indice       = i,
-            punto_inicio = {"lat": p_ini["lat"], "lon": p_ini["lon"]},
-            punto_medio  = {
-                "lat": (p_ini["lat"] + p_fin["lat"]) / 2,
-                "lon": (p_ini["lon"] + p_fin["lon"]) / 2,
+        segments.append(Segment(
+            id          = f"V{i + 1:03d}",
+            index       = i,
+            start_point = {"lat": p_start["lat"], "lon": p_start["lon"]},
+            mid_point   = {
+                "lat": (p_start["lat"] + p_end["lat"]) / 2,
+                "lon": (p_start["lon"] + p_end["lon"]) / 2,
             },
-            punto_fin    = {"lat": p_fin["lat"], "lon": p_fin["lon"]},
-            longitud_km  = round(longitud_m / 1000.0, 3),
-            altitud_m    = round((alt_ini + alt_fin) / 2.0, 1),
-            azimut_deg   = round(azimut, 1),
+            end_point   = {"lat": p_end["lat"], "lon": p_end["lon"]},
+            length_km   = round(length_m / 1000.0, 3),
+            elevation_m = round((elev_start + elev_end) / 2.0, 1),
+            azimuth_deg = round(azimuth, 1),
         ))
 
-    return tramos
+    return segments

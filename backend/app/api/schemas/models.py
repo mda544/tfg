@@ -264,13 +264,13 @@ class StudyCaseResponseDTO(BaseModel):
 
 class RegisterRequestDTO(BaseModel):
     """Cuerpo de la petición para POST /api/v1/auth/register."""
-    email:    str
+    username: str
     password: str
 
 
 class LoginRequestDTO(BaseModel):
     """Cuerpo de la petición para POST /api/v1/auth/login."""
-    email:    str
+    username: str
     password: str
 
 
@@ -280,4 +280,4 @@ class TokenResponseDTO(BaseModel):
     access_token: str
     token_type:   str = "bearer"
     user_id:      str
-    email:        str
+    username:     str

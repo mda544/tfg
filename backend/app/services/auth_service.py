@@ -14,7 +14,7 @@ from app.api.schemas.models import RegisterRequestDTO, LoginRequestDTO, TokenRes
 # bcrypt para hashear contraseñas
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# FastAPI lee el token del header: Authorization: Bearer <token>
+# Authorization: Bearer <token>
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
@@ -26,44 +26,44 @@ def _verify_password(plain: str, hashed: str) -> bool:
     return _pwd_context.verify(plain, hashed)
 
 
-def _create_token(user_id: str, email: str) -> str:
+def _create_token(user_id: str, username: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expires_min)
     payload = {
-        "sub":   user_id,
-        "email": email,
-        "exp":   expire,
+        "sub":      user_id,
+        "username": username,
+        "exp":      expire,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
 async def register(db: AsyncSession, data: RegisterRequestDTO) -> TokenResponseDTO:
-    if await users_repo.exists_by_email(db, data.email):
-        raise HTTPException(status_code=409, detail="Email already registered.")
+    if await users_repo.exists_by_username(db, data.username):
+        raise HTTPException(status_code=409, detail="Nombre de usuario ya en uso.")
 
-    user = await users_repo.create(db, data.email, _hash_password(data.password))
-    token = _create_token(user.id, user.email)
+    user  = await users_repo.create(db, data.username, _hash_password(data.password))
+    token = _create_token(user.id, user.username)
 
     return TokenResponseDTO(
         access_token = token,
         user_id      = user.id,
-        email        = user.email,
+        username     = user.username,
     )
 
 
 async def login(db: AsyncSession, data: LoginRequestDTO) -> TokenResponseDTO:
-    user = await users_repo.get_by_email(db, data.email)
+    user = await users_repo.get_by_username(db, data.username)
 
     if user is None or not _verify_password(data.password, user.password):
         raise HTTPException(
             status_code=401,
-            detail="Invalid email or password.",
+            detail="Usuario o contraseña incorrectos.",
         )
 
-    token = _create_token(user.id, user.email)
+    token = _create_token(user.id, user.username)
     return TokenResponseDTO(
         access_token = token,
         user_id      = user.id,
-        email        = user.email,
+        username     = user.username,
     )
 
 

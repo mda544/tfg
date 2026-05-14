@@ -1,0 +1,53 @@
+.uploader {
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 14px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+  background: #f8fafc;
+}
+.uploader:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+.uploader.error {
+  border-color: #f87171;
+  background: #fef2f2;
+}
+.uploader.loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.icon {
+  font-size: 1.4rem;
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+}
+.label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #475569;
+  margin: 0 0 4px;
+}
+.hint {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin: 4px 0 0;
+}
+
+.mensaje {
+  font-size: 0.75rem;
+  margin: 4px 0 0;
+  font-weight: 500;
+}
+.mensajeOk {
+  color: #15803d;
+}
+.mensajeError {
+  color: #dc2626;
+}

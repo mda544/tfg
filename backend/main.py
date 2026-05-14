@@ -6,13 +6,17 @@ from app.api.routes import auth, rates, climate, elevation, conductors, lines, s
 from app.core.config import settings
 from app.infrastructure.database import engine, Base
 from app.infrastructure import orm_models
+from app.infrastructure.clients import weather_client  
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await weather_client.startup()         
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
+    await weather_client.shutdown()         
     await engine.dispose()
 
 

@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { parseGeoJSON, parseSHP } from "../utils/geometryLoader";
 import { parseLineExcel } from "../utils/excelParser";
+import styles from "./GeometryUploader.module.css";
 
-const GeometryUploader = ({ onGeometriaCargada }) => {
+export default function GeometryUploader({ onGeometriaCargada }) {
   const inputRef = useRef(null);
   const [estado, setEstado] = useState("idle"); // idle | loading | error
   const [mensaje, setMensaje] = useState("");
@@ -29,27 +30,25 @@ const GeometryUploader = ({ onGeometriaCargada }) => {
         const resultado = await parseLineExcel(excelFile);
         features = [resultado];
         advertencias = resultado.advertencias ?? [];
-
         const { sistema_original, zona_utm, n_apoyos } = resultado.propiedades;
-        const infoSistema = sistema_original === "utm"
-          ? ` — UTM zona ${zona_utm}N → WGS84`
-          : " — WGS84";
-
-        setMensaje(`${n_apoyos} apoyos cargados${infoSistema}` +
-          (advertencias.length > 0 ? ` (${advertencias.length} filas ignoradas)` : ""));
+        const infoSistema =
+          sistema_original === "utm"
+            ? ` — UTM zona ${zona_utm}N → WGS84`
+            : " — WGS84";
+        setMensaje(
+          `${n_apoyos} apoyos cargados${infoSistema}` +
+            (advertencias.length > 0
+              ? ` (${advertencias.length} filas ignoradas)`
+              : ""),
+        );
       } else {
         throw new Error(
           "Formato no reconocido. Usa .geojson, .json, .shp o .xlsx",
         );
       }
 
-      if (features.length === 0) {
+      if (features.length === 0)
         throw new Error("El archivo no contiene geometrías válidas.");
-      }
-
-      if (advertencias.length > 0) {
-        console.warn("Advertencias al cargar Excel:", advertencias);
-      }
 
       setEstado("idle");
       setMensaje(
@@ -68,18 +67,14 @@ const GeometryUploader = ({ onGeometriaCargada }) => {
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const onDrop = (e) => {
-    e.preventDefault();
-    procesarArchivos(e.dataTransfer.files);
-  };
-
-  const onDragOver = (e) => e.preventDefault();
-
   return (
     <div
-      className={`geometry-uploader ${estado}`}
-      onDrop={onDrop}
-      onDragOver={onDragOver}
+      className={`${styles.uploader} ${styles[estado]}`}
+      onDrop={(e) => {
+        e.preventDefault();
+        procesarArchivos(e.dataTransfer.files);
+      }}
+      onDragOver={(e) => e.preventDefault()}
       onClick={() => inputRef.current?.click()}
       role="button"
       tabIndex={0}
@@ -93,26 +88,20 @@ const GeometryUploader = ({ onGeometriaCargada }) => {
         style={{ display: "none" }}
         onChange={(e) => procesarArchivos(e.target.files)}
       />
-
-      <span className="uploader-icon">
+      <span className={styles.icon}>
         {estado === "loading" ? "⋯" : estado === "error" ? "✕" : "↑"}
       </span>
-
-      <p className="uploader-label">Arrastra un .geojson, .shp o .xlsx aquí</p>
-
+      <p className={styles.label}>Arrastra un .geojson, .shp o .xlsx aquí</p>
       {mensaje && (
         <p
-          className={`uploader-mensaje ${estado === "error" ? "error" : "ok"}`}
+          className={`${styles.mensaje} ${estado === "error" ? styles.mensajeError : styles.mensajeOk}`}
         >
           {mensaje}
         </p>
       )}
-
-      <p className="uploader-hint">
+      <p className={styles.hint}>
         Excel: columnas X (longitud) e Y (latitud) en WGS84
       </p>
     </div>
   );
-};
-
-export default GeometryUploader;
+}

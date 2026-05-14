@@ -16,13 +16,13 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /backend
 
-# Copiar e instalar dependencias primero (cacheo de capas Docker)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el resto del código
 COPY . .
+
+RUN pip install --no-cache-dir ./pypacity
 
 # 1. Aplica migraciones pendientes al arrancar
 # 2. Levanta el servidor
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

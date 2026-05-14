@@ -20,10 +20,6 @@ def _line_to_wkt(start: dict, end: dict) -> str:
 class RatesRepository:
 
     async def save(self, db: AsyncSession, result: dict) -> RateResultORM:
-        """
-        Persiste cabecera + segmentos en una sola transacción.
-        result tiene la estructura de RateCalculationResponseDTO.
-        """
         orm_result = RateResultORM(
             id                 = result["id"],
             study_case_id      = result.get("study_case_id"),
@@ -33,27 +29,24 @@ class RatesRepository:
             route_info         = result["route_info"],
             warnings           = result.get("warnings", []),
             conductor_snapshot = result["conductor"],
+            segments_data      = result["segments"],  
         )
         db.add(orm_result)
 
         for seg in result["segments"]:
-            rates = seg["rates"]
+            rates   = seg["rates"]
             orm_seg = SegmentORM(
                 rate_result_id = result["id"],
                 segment_id     = seg["segment_id"],
                 index          = seg.get("index", 0),
-                mid_point      = WKTElement(
-                    _point_to_wkt(seg["mid_point"]), srid=4326
-                ),
-                geometry       = WKTElement(
-                    _line_to_wkt(seg["start_point"], seg["end_point"]), srid=4326
-                ),
+                mid_point      = WKTElement(_point_to_wkt(seg["mid_point"]),  srid=4326),
+                geometry       = WKTElement(_line_to_wkt(seg["start_point"], seg["end_point"]), srid=4326),
                 length_km      = seg["length_km"],
                 elevation_m    = seg["elevation_m"],
                 azimuth_deg    = seg.get("azimuth_deg", 90.0),
-                rate_summer_a  = rates.get("verano", 0.0),
-                rate_autumn_a  = rates.get("otono", 0.0),
-                rate_winter_a  = rates.get("invierno", 0.0),
+                rate_summer_a  = rates.get("verano",    0.0),
+                rate_autumn_a  = rates.get("otono",     0.0),
+                rate_winter_a  = rates.get("invierno",  0.0),
                 rate_spring_a  = rates.get("primavera", 0.0),
                 design_rate_a  = seg["design_rate_a"],
                 details        = seg["details"],

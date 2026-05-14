@@ -15,7 +15,7 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// ── Distancia Haversine inline (no depende de geometryValidator) ──────────
+// Haversine inline — Leaflet usa {lat, lng} internamente
 function haversineM(a, b) {
   const R = 6_371_000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -28,51 +28,35 @@ function haversineM(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-function formatDistance(metres) {
-  return metres >= 1000
-    ? `${(metres / 1000).toFixed(2)} km`
-    : `${Math.round(metres)} m`;
+function formatDistance(m) {
+  return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 }
 
-// ── Capa de medición en tiempo real ──────────────────────────────────────────
-// Dibuja una etiqueta flotante con la distancia al último apoyo mientras
-// el usuario mueve el ratón durante el trazado.
+// ── Etiqueta de distancia en tiempo real ──────────────────────────────────────
 const CapaMedicion = ({ maxSpanM }) => {
   const map = useMap();
-  const labelRef = useRef(null); // div flotante
-  const lastPtRef = useRef(null); // último punto confirmado
-  const activeRef = useRef(false); // ¿está el usuario dibujando ahora?
+  const labelRef = useRef(null);
+  const lastPtRef = useRef(null);
+  const activeRef = useRef(false);
 
   useEffect(() => {
     if (!map) return;
 
-    // Crear el div flotante y añadirlo al contenedor del mapa
     const label = document.createElement("div");
     label.style.cssText = `
-      position: absolute;
-      pointer-events: none;
-      z-index: 1000;
-      background: rgba(0,0,0,0.72);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 4px 10px;
-      border-radius: 6px;
-      white-space: nowrap;
-      display: none;
-      transform: translate(12px, -50%);
+      position:absolute; pointer-events:none; z-index:1000;
+      background:rgba(0,0,0,0.72); color:#fff; font-size:12px; font-weight:600;
+      padding:4px 10px; border-radius:6px; white-space:nowrap;
+      display:none; transform:translate(12px,-50%);
     `;
     map.getContainer().appendChild(label);
     labelRef.current = label;
 
-    // Cuando Geoman empieza a dibujar una línea
     const onDrawStart = (e) => {
       if (e.shape !== "Line") return;
       activeRef.current = true;
       lastPtRef.current = null;
     };
-
-    // Cuando el usuario hace clic y confirma un punto
     const onVertexAdded = (e) => {
       if (!activeRef.current) return;
       const latlngs = e.workingLayer?.getLatLngs?.() ?? [];
@@ -81,32 +65,26 @@ const CapaMedicion = ({ maxSpanM }) => {
         lastPtRef.current = { lat: last.lat, lng: last.lng };
       }
     };
-
-    // Movimiento del ratón — actualizar etiqueta
     const onMouseMove = (e) => {
-      if (!activeRef.current || !lastPtRef.current || !labelRef.current) return;
-
+      if (!activeRef.current || !lastPtRef.current || !label) return;
       const cursor = { lat: e.latlng.lat, lng: e.latlng.lng };
       const dist = haversineM(lastPtRef.current, cursor);
       const over = dist > maxSpanM;
-
-      const containerPoint = map.latLngToContainerPoint(e.latlng);
-      label.style.left = `${containerPoint.x}px`;
-      label.style.top = `${containerPoint.y}px`;
+      const pt = map.latLngToContainerPoint(e.latlng);
+      label.style.left = `${pt.x}px`;
+      label.style.top = `${pt.y}px`;
       label.style.display = "block";
       label.style.background = over
-        ? "rgba(200, 40, 30, 0.85)" // rojo si supera el umbral
-        : "rgba(0, 0, 0, 0.72)";
+        ? "rgba(200,40,30,0.85)"
+        : "rgba(0,0,0,0.72)";
       label.textContent = over
         ? `⚠ ${formatDistance(dist)} — se auto-segmentará`
         : formatDistance(dist);
     };
-
-    // Fin del dibujo — ocultar etiqueta
     const onDrawEnd = () => {
       activeRef.current = false;
       lastPtRef.current = null;
-      if (labelRef.current) labelRef.current.style.display = "none";
+      if (label) label.style.display = "none";
     };
 
     map.on("pm:drawstart", onDrawStart);
@@ -128,16 +106,13 @@ const CapaMedicion = ({ maxSpanM }) => {
   return null;
 };
 
-// ── Herramientas de dibujo Geoman ─────────────────────────────────────────────
+// ── Controles de dibujo Geoman ────────────────────────────────────────────────
 const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
   const map = useMap();
 
   useEffect(() => {
     if (!map?.pm) return;
-
-    // Activar medición de longitud nativa de Geoman
     map.pm.setGlobalOptions({ showLength: true });
-
     map.pm.addControls({
       position: "topleft",
       drawMarker: false,
@@ -154,20 +129,12 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
 
     const onCreate = (e) => {
       const latlngs = e.layer.getLatLngs();
-      // Geoman devuelve [[LatLng,...]] para polilíneas — aplanamos
       const flat = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
-      const coords = flat.map((p) => ({ lat: p.lat, lng: p.lng }));
-      
-      // Borramos el trazo crudo de Geoman del mapa
+      // Leaflet devuelve {lat, lng} — convertimos a {lat, lon} para el backend
+      const coords = flat.map((p) => ({ lat: p.lat, lon: p.lng }));
       map.removeLayer(e.layer);
-
-      onDibujoCreado({
-        tipo: e.shape,
-        coordenadas: coords,
-        // Eliminamos layerId porque ya no nos hace falta seguir esta capa
-      });
+      onDibujoCreado({ tipo: e.shape, coordenadas: coords });
     };
-
     const onRemove = (e) => onDibujoBorrado(e.shape);
 
     map.on("pm:create", onCreate);
@@ -189,6 +156,7 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
   const featureGroupRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
+    // Recibe coordenadas en {lat, lon} y las convierte a [lat, lng] para Leaflet
     dibujarGeometria(feature) {
       const map = mapRef.current;
       const fg = featureGroupRef.current;
@@ -200,16 +168,15 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
       const clean = feature.coordenadas.filter(
         (c) =>
           typeof c.lat === "number" &&
-          typeof c.lng === "number" &&
+          typeof c.lon === "number" &&
           !isNaN(c.lat) &&
-          !isNaN(c.lng),
+          !isNaN(c.lon),
       );
       if (!clean.length) return;
 
       const singulars = feature.propiedades?.puntos_singulares ?? [];
-      const latlngs = clean.map((c) => [c.lat, c.lng]);
+      const latlngs = clean.map((c) => [c.lat, c.lon]); // Leaflet acepta [lat, lng_value]
 
-      // Segmentos de línea
       for (let i = 0; i < latlngs.length - 1; i++) {
         L.polyline([latlngs[i], latlngs[i + 1]], {
           color: "#2563eb",
@@ -219,10 +186,9 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
           .addTo(fg);
       }
 
-      // Marcadores de apoyo
       clean.forEach((coord, idx) => {
         const meta =
-          singulars.find((p) => p.lat === coord.lat && p.lng === coord.lng) ??
+          singulars.find((p) => p.lat === coord.lat && p.lon === coord.lon) ??
           {};
         const popup = [
           `<div style="font-family:sans-serif">`,
@@ -235,7 +201,7 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
           "</div>",
         ].join("");
 
-        L.circleMarker([coord.lat, coord.lng], {
+        L.circleMarker([coord.lat, coord.lon], {
           radius: 6,
           color: "white",
           weight: 2,
@@ -246,17 +212,9 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
           .addTo(fg);
       });
 
-      const base = L.polyline(latlngs);
-      const bounds = base.getBounds();
+      const bounds = L.polyline(latlngs).getBounds();
       if (bounds.isValid())
         map.fitBounds(bounds, { maxZoom: 16, padding: [20, 20] });
-      
-      /** 
-      onDatosDibujados({
-        tipo: "Line",
-        coordenadas: clean,
-        layerId: L.stamp(base),
-      });*/
     },
 
     limpiarTodo() {
@@ -289,7 +247,6 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
             onDibujoCreado={onDatosDibujados}
             onDibujoBorrado={onDatosBorrados}
           />
-          {/* Etiqueta de distancia en tiempo real — umbral 500 m */}
           <CapaMedicion maxSpanM={500} />
         </FeatureGroup>
       </MapContainer>
@@ -297,4 +254,5 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
   );
 });
 
+MapaTrazado.displayName = "MapaTrazado";
 export default MapaTrazado;
