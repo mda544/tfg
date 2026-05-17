@@ -6,7 +6,7 @@ import PanelEscenariosEstacionales from "./features/scenarios/PanelEscenariosEst
 import PanelValidacion from "./components/PanelValidacion";
 import PanelResultadosRates from "./features/results/PanelResultadosRates";
 import ConductorSelector from "./features/conductor/ConductorSelector";
-import { useConductors } from "./hooks/useConductors";
+import { CONDUCTORES_FALLBACK } from "./hooks/useConductors";
 import { useClimateSync } from "./hooks/useClimateSync";
 import { useRateCalculation } from "./hooks/useRateCalculation";
 import {
@@ -30,10 +30,8 @@ export default function App() {
   const [useDem, setUseDem] = useState(true);
   const [fuenteClima, setFuenteClima] = useState("openmeteo");
 
-  // Conductor seleccionado (objeto completo del backend)
-  const { conductors } = useConductors();
-  const [conductorId, setConductorId] = useState(null);
-  const conductor = conductors.find((c) => c.id === conductorId) ?? conductors[0];
+  // Conductores
+  const [conductor, setConductor] = useState(CONDUCTORES_FALLBACK[0]);
 
   // Hooks de negocio
   const { sync: syncClima, loading: cargandoClima } = useClimateSync();
@@ -146,8 +144,8 @@ export default function App() {
           <section className="panel-section">
             <h2>Conductor</h2>
             <ConductorSelector
-              selected={conductorId}
-              onChange={(c) => setConductorId(c.id)}
+              selected={conductor?.id}
+              onChange={(c) => setConductor(c.id)}
             />
           </section>
 
@@ -176,11 +174,9 @@ export default function App() {
               onChange={manejarCambioFuenteClima}
             >
               <option value="openmeteo">
-                Copernicus ERA5 (Open-Meteo) — 9 km
+                Copernicus ERA5/ERA5-Land (Open-Meteo) — 9-25 km
               </option>
-              <option value="nasa">
-                MERRA-2 (NASA POWER) — ~50 km
-              </option>
+              <option value="nasa">MERRA-2 (NASA POWER) — ~50 km</option>
             </select>
           </section>
 

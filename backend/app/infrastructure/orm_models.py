@@ -17,11 +17,6 @@ def _now() -> datetime:
 
 
 class UserORM(Base):
-    """
-    Usuario de la aplicación.
-    Todas las tablas de datos tienen owner_id → users.id
-    para aislar los datos entre usuarios.
-    """
     __tablename__ = "users"
 
     id:         Mapped[str]      = mapped_column(UUID(as_uuid=False), primary_key=True, default=_uuid)

@@ -1,251 +1,198 @@
-import { useState, useCallback } from "react";
+import {
+  ESTACION_LABEL,
+  ESTACION_COLOR,
+  ELEVATION_SOURCE_LABEL,
+  colorAmpacidad,
+} from "./resultsUtils";
 import "./PanelResultadosRates.css";
 
-const ESTACIONES = ["verano", "invierno", "primavera", "otono"];
+export default function PanelResultadosRates({ resultado }) {
+  if (!resultado) return null;
 
-const DEFAULTS = {
-  verano: { temp: 38, viento: 0.6, angulo: 90, radiacion: 900 },
-  invierno: { temp: 5, viento: 3.0, angulo: 90, radiacion: 200 },
-  primavera: { temp: 18, viento: 2.5, angulo: 90, radiacion: 650 },
-  otono: { temp: 20, viento: 2.0, angulo: 90, radiacion: 500 },
-};
-
-const META = {
-  verano: {
-    label: "Verano",
-    descripcion: "Condición más restrictiva",
-    color: "coral",
-  },
-  invierno: {
-    label: "Invierno",
-    descripcion: "Mayor capacidad de transporte",
-    color: "blue",
-  },
-  primavera: {
-    label: "Primavera",
-    descripcion: "Condición intermedia",
-    color: "green",
-  },
-  otono: {
-    label: "Otoño",
-    descripcion: "Condición intermedia",
-    color: "amber",
-  },
-};
-
-// ── IEEE 738 simplificado para preview en tiempo real ──────────────────────
-function calcularAmpacidadPreview(escenario, conductorRef) {
-  const {
-    diametro_mm = 28.1,
-    r_ac_75 = 0.072,
-    temp_max = 90,
-  } = conductorRef ?? {};
-  const { temp, viento, angulo, radiacion } = escenario;
-  if (temp >= temp_max) return 0;
-
-  const D = diametro_mm / 1000;
-  const Tc = temp_max;
-  const Ta = temp;
-  const tf = (Tc + Ta) / 2;
-
-  const rho = 1.293 * (273.15 / (273.15 + tf));
-  const mu = (1.458e-6 * (tf + 273.15) ** 1.5) / (tf + 273.15 + 110.4);
-  const kf = 2.42e-2 + 7.2e-5 * tf;
-
-  const phi = (angulo * Math.PI) / 180;
-  const kAng =
-    1.194 -
-    Math.cos(phi) +
-    0.194 * Math.cos(2 * phi) +
-    0.368 * Math.sin(2 * phi);
-
-  const v = Math.max(viento, 0.01);
-  const Re = (rho * v * D) / mu;
-  const qc = Math.max(
-    kAng * (1.01 + 1.35 * Re ** 0.52) * kf * (Tc - Ta),
-    kAng * 0.754 * Re ** 0.6 * kf * (Tc - Ta),
-    3.645 * rho ** 0.5 * D ** 0.75 * (Tc - Ta) ** 1.25,
-  );
-
-  const sigma = 5.6704e-8;
-  const qr =
-    0.5 * Math.PI * D * sigma * ((Tc + 273.15) ** 4 - (Ta + 273.15) ** 4);
-  const qs = 0.5 * radiacion * Math.sin(phi) * D;
-  const R = r_ac_75 / 1000;
-
-  const disipado = qc + qr - qs;
-  return disipado > 0 ? Math.round(Math.sqrt(disipado / R)) : 0;
-}
-
-const CampoSlider = ({
-  label,
-  unidad,
-  nombre,
-  valor,
-  min,
-  max,
-  paso,
-  onChange,
-}) => (
-  <div className="pes-campo">
-    <div className="pes-campo-header">
-      <label className="pes-campo-label">{label}</label>
-      <span className="pes-campo-valor">
-        {typeof valor === "number" && !Number.isInteger(valor)
-          ? valor.toFixed(1)
-          : valor}{" "}
-        {unidad}
-      </span>
-    </div>
-    <input
-      type="range"
-      min={min}
-      max={max}
-      step={paso}
-      value={valor}
-      onChange={(e) => onChange(nombre, parseFloat(e.target.value))}
-    />
-  </div>
-);
-
-// ── Componente principal ────────────────────────────────────────────────────
-const PanelEscenariosEstacionales = ({
-  conductorRef,
-  escenarios,
-  onChange,
-}) => {
-  const [activa, setActiva] = useState("verano");
-
-  const actualizarCampo = useCallback(
-    (campo, valor) => {
-      const nuevo = {
-        ...escenarios,
-        [activa]: { ...escenarios[activa], [campo]: valor },
-      };
-      onChange?.(nuevo);
-    },
-    [activa, escenarios, onChange],
-  );
-
-  const resetearEstacion = () => {
-    const nuevo = { ...escenarios, [activa]: { ...DEFAULTS[activa] } };
-    onChange?.(nuevo);
-  };
-
-  const resetearTodo = () => {
-    const reset = Object.fromEntries(
-      ESTACIONES.map((e) => [e, { ...DEFAULTS[e] }]),
+  if (resultado.error) {
+    return (
+      <div className="prr-panel prr-error">
+        <p className="prr-error-titulo">Error en el cálculo</p>
+        <p className="prr-error-msg">{resultado.error}</p>
+      </div>
     );
-    onChange?.(reset);
-  };
+  }
 
-  const escenarioActivo = escenarios[activa];
-  const ampacidad = calcularAmpacidadPreview(escenarioActivo, conductorRef);
-  const condViento =
-    escenarioActivo.viento < 1
-      ? "Calma — caso crítico"
-      : escenarioActivo.viento < 3
-        ? "Moderado"
-        : "Fuerte";
+  // Campos actualizados al nuevo backend
+  const {
+    design_rate_a,
+    rates_by_season = {},
+    segments = [],
+    n_segments,
+    conductor,
+    route_info = {},
+    warnings = [],
+  } = resultado;
+
+  const estaciones = Object.keys(rates_by_season);
+  const tramoCritico = segments.reduce(
+    (min, t) => (t.design_rate_a < min.design_rate_a ? t : min),
+    segments[0] ?? { design_rate_a: Infinity, segment_id: "—" },
+  );
+
+  const ampacidades = segments.map((t) => t.design_rate_a);
+  const hayVariacion =
+    ampacidades.length > 1 &&
+    Math.max(...ampacidades) - Math.min(...ampacidades) > 0.5;
+
+  const fuenteAlt = route_info.elevation_source ?? "sin_altitud";
+  const modoSeg = route_info.segment_mode ?? "";
 
   return (
-    <div className="pes-panel">
-      <div className="pes-tabs" role="tablist">
-        {ESTACIONES.map((est) => (
-          <button
-            key={est}
-            role="tab"
-            aria-selected={activa === est}
-            className={`pes-tab pes-tab--${META[est].color} ${activa === est ? "pes-tab--activa" : ""}`}
-            onClick={() => setActiva(est)}
-          >
-            {META[est].label}
-          </button>
-        ))}
+    <div className="prr-panel">
+      {/* Cabecera */}
+      <div className="prr-cabecera">
+        <div>
+          <p className="prr-label">Rate de diseño de la línea</p>
+          <p className="prr-rate-principal">
+            {design_rate_a} <span>A</span>
+          </p>
+          <p className="prr-sublabel">
+            Tramo crítico: {tramoCritico.segment_id}
+            {tramoCritico.elevation_m > 0
+              ? ` · ${tramoCritico.elevation_m} m s.n.m.`
+              : ""}
+            {" · "}
+            {route_info.length_km ?? "?"} km
+            {" · "}
+            {n_segments} {modoSeg.includes("vanos") ? "vanos" : "tramos"}
+          </p>
+        </div>
+        <div className="prr-badge-metodo">IEEE 738-2012</div>
       </div>
 
-      <span className={`pes-badge pes-badge--${META[activa].color}`}>
-        {META[activa].descripcion}
-      </span>
-
-      <CampoSlider
-        label="Temperatura ambiente"
-        unidad="°C"
-        nombre="temp"
-        valor={escenarioActivo.temp}
-        min={-10}
-        max={50}
-        paso={1}
-        onChange={actualizarCampo}
-      />
-      <CampoSlider
-        label="Velocidad de viento"
-        unidad="m/s"
-        nombre="viento"
-        valor={escenarioActivo.viento}
-        min={0}
-        max={15}
-        paso={0.1}
-        onChange={actualizarCampo}
-      />
-      <CampoSlider
-        label="Radiación solar"
-        unidad="W/m²"
-        nombre="radiacion"
-        valor={escenarioActivo.radiacion}
-        min={0}
-        max={1200}
-        paso={10}
-        onChange={actualizarCampo}
-      />
-      <CampoSlider
-        label="Ángulo viento / conductor"
-        unidad="°"
-        nombre="angulo"
-        valor={escenarioActivo.angulo}
-        min={0}
-        max={90}
-        paso={1}
-        onChange={actualizarCampo}
-      />
-
-      <div className="pes-metricas">
-        <div className="pes-metrica">
-          <span className="pes-metrica-label">Ampacidad estimada</span>
-          <span className="pes-metrica-valor">{ampacidad}</span>
-          <span className="pes-metrica-unidad">A (IEEE 738, preview)</span>
-        </div>
-        <div className="pes-metrica">
-          <span className="pes-metrica-label">Condición viento</span>
-          <span
-            className="pes-metrica-valor"
-            style={{ fontSize: "14px", marginTop: "4px" }}
-          >
-            {condViento}
-          </span>
-        </div>
-      </div>
-
-      <div className="pes-acciones">
-        <button className="pes-btn" onClick={resetearEstacion}>
-          Restaurar defaults
-        </button>
-        <button
-          className="pes-btn pes-btn--secundario"
-          onClick={resetearTodo} // <-- CORREGIDO: Llamada directa a la función local sin parámetros
+      {/* Criterio + fuente altitud */}
+      <div className="prr-criterio">
+        <span>
+          Criterio: P90 temperatura / P10 viento. Rate = mínimo de todos los
+          tramos.
+        </span>
+        <span
+          className={`prr-dem-badge prr-dem-${fuenteAlt.includes("error") ? "error" : fuenteAlt === "sin_altitud" ? "off" : "ok"}`}
         >
-          Restaurar todos
-        </button>
+          Altitud: {ELEVATION_SOURCE_LABEL[fuenteAlt] ?? fuenteAlt}
+          {route_info.min_elevation_m !== undefined &&
+            fuenteAlt !== "sin_altitud" &&
+            ` · ${route_info.min_elevation_m}–${route_info.max_elevation_m} m`}
+        </span>
       </div>
 
-      <p className="pes-nota">
-        Defaults: P90 temperatura / P10 viento — Península Ibérica. Los valores
-        definitivos se calculan en el backend con IEEE 738 completo.
-      </p>
+      {!hayVariacion && segments.length > 1 && fuenteAlt !== "sin_altitud" && (
+        <div className="prr-aviso-plano">
+          Todos los tramos tienen el mismo rate. Comprueba que el DEM devolvió
+          altitudes variadas (altitud media: {route_info.avg_elevation_m ?? 0}{" "}
+          m).
+        </div>
+      )}
+
+      {/* Rates por estación */}
+      <div className="prr-estaciones">
+        {estaciones.map((est) => {
+          const amp = rates_by_season[est];
+          const c = colorAmpacidad(amp);
+          return (
+            <div
+              key={est}
+              className="prr-est-card"
+              style={{ borderTop: `3px solid ${ESTACION_COLOR[est]}` }}
+            >
+              <p className="prr-est-nombre">{ESTACION_LABEL[est] ?? est}</p>
+              <p
+                className="prr-est-amp"
+                style={{ color: c.text, background: c.bg }}
+              >
+                {amp} A
+              </p>
+              <p className="prr-est-sub">mínimo de tramos</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Tabla de segmentos */}
+      {segments.length > 0 && (
+        <div className="prr-tabla-wrap">
+          <table className="prr-tabla">
+            <thead>
+              <tr>
+                <th>Tramo</th>
+                <th>Long.</th>
+                <th>Alt.</th>
+                {estaciones.map((e) => (
+                  <th key={e} style={{ color: ESTACION_COLOR[e] }}>
+                    {ESTACION_LABEL[e]?.slice(0, 3)}.
+                  </th>
+                ))}
+                <th>Diseño</th>
+                <th>Conv.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {segments.map((seg) => {
+                const esCritico = seg.segment_id === tramoCritico.segment_id;
+                const c = colorAmpacidad(seg.design_rate_a);
+                const modo = seg.details?.[estaciones[0]]?.conv_mode ?? "—";
+                const altitud = seg.elevation_m ?? 0;
+                return (
+                  <tr
+                    key={seg.segment_id}
+                    className={esCritico ? "prr-fila-critica" : ""}
+                  >
+                    <td className="prr-td-id">{seg.segment_id}</td>
+                    <td>{seg.length_km} km</td>
+                    <td className="prr-td-alt">
+                      {altitud > 0 ? `${Math.round(altitud)} m` : "—"}
+                    </td>
+                    {estaciones.map((e) => (
+                      <td key={e}>{seg.rates?.[e] ?? "—"} A</td>
+                    ))}
+                    <td>
+                      <span
+                        className="prr-pill"
+                        style={{ background: c.bg, color: c.text }}
+                      >
+                        {seg.design_rate_a} A
+                      </span>
+                    </td>
+                    <td className="prr-td-modo">{modo}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Advertencias del backend */}
+      {warnings.length > 0 && (
+        <div className="prr-advertencias">
+          <p className="prr-adv-titulo">{warnings.length} advertencia(s)</p>
+          <ul>
+            {warnings.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Trazabilidad */}
+      <div className="prr-trazabilidad">
+        <p>
+          Conductor: Ø{conductor?.diameter_mm} mm · R75=
+          {conductor?.r_ac_75_ohm_km} Ω/km · R25={conductor?.r_ac_25_ohm_km}{" "}
+          Ω/km · Tmax={conductor?.max_temp_c}°C · ε={conductor?.emissivity} · α=
+          {conductor?.absorptivity}
+        </p>
+        <p>
+          Modelo: IEEE Std 738-2012 · Régimen estacionario · Segmentación:{" "}
+          {modoSeg} · Altitud: {ELEVATION_SOURCE_LABEL[fuenteAlt] ?? fuenteAlt}
+        </p>
+      </div>
     </div>
   );
-};
-
-export default PanelEscenariosEstacionales;
-
-export { DEFAULTS as ESCENARIOS_DEFAULT };
+}

@@ -1,12 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import {
-  getConductors,
-  createConductor,
-  deleteConductor,
-} from "../api/conductors";
+import { useState, useCallback } from "react";
+import { createConductor, deleteConductor } from "../api/conductors";
 
-/** Conductores de fallback por si la API no está disponible o el usuario no está autenticado */
-const CONDUCTORES_FALLBACK = [
+export const CONDUCTORES_FALLBACK = [
   {
     id: "local-1",
     name: "LA-110 (Hawk)",
@@ -50,41 +45,36 @@ const CONDUCTORES_FALLBACK = [
 ];
 
 export function useConductors() {
-  const [conductors, setConductors] = useState(CONDUCTORES_FALLBACK);
-  const [loading, setLoading] = useState(false);
+  const [custom, setCustom] = useState([]);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [fromApi, setFromApi] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Todos los conductores: estándar + personalizados del usuario
+  const conductors = [...CONDUCTORES_FALLBACK, ...custom];
+
+  const create = useCallback(async (payload) => {
+    setSaving(true);
     setError(null);
     try {
-      const data = await getConductors();
-      if (data.length > 0) {
-        setConductors(data);
-        setFromApi(true);
-      }
-    } catch {
-      setFromApi(false);
+      const nuevo = await createConductor(payload);
+      setCustom((prev) => [...prev, nuevo]);
+      return nuevo;
+    } catch (err) {
+      setError(err.message);
+      return null;
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const create = useCallback(async (payload) => {
-    const nuevo = await createConductor(payload);
-    setConductors((prev) => [...prev, nuevo]);
-    return nuevo;
-  }, []);
-
   const remove = useCallback(async (id) => {
-    await deleteConductor(id);
-    setConductors((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await deleteConductor(id);
+      setCustom((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      setError(err.message);
+    }
   }, []);
 
-  return { conductors, loading, error, fromApi, reload: load, create, remove };
+  return { conductors, custom, saving, error, create, remove };
 }

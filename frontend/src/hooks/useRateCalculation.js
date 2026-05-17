@@ -27,7 +27,6 @@ export function useRateCalculation() {
       setResultado(null);
 
       try {
-        // Normalizar a {lat, lon} por si llegara algo con {lat, lng}
         const coordsNorm = normalizarALatLon(coordenadas);
         const coordsDensas = densificarTrazado(coordsNorm, 500);
         const tieneZExcel = coordsDensas.some((c) => (c.altitud ?? 0) > 0);

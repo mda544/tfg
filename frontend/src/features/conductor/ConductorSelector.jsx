@@ -3,7 +3,13 @@ import { useConductors } from "../../hooks/useConductors";
 import styles from "./ConductorSelector.module.css";
 
 export default function ConductorSelector({ selected, onChange }) {
-  const { conductors, loading, fromApi, create } = useConductors();
+  const {
+    conductors,
+    custom,
+    saving,
+    error: apiError,
+    create,
+  } = useConductors();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -14,7 +20,6 @@ export default function ConductorSelector({ selected, onChange }) {
     absorptivity: 0.5,
     max_temp_c: 90,
   });
-  const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
   const selectedConductor =
@@ -27,28 +32,23 @@ export default function ConductorSelector({ selected, onChange }) {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    setSaving(true);
     setFormError("");
-    try {
-      const nuevo = await create({
-        name: formData.name,
-        diameter_mm: parseFloat(formData.diameter_mm),
-        r_ac_75_ohm_km: parseFloat(formData.r_ac_75_ohm_km),
-        r_ac_25_ohm_km: parseFloat(formData.r_ac_25_ohm_km),
-        emissivity: parseFloat(formData.emissivity),
-        absorptivity: parseFloat(formData.absorptivity),
-        max_temp_c: parseFloat(formData.max_temp_c),
-      });
+    const nuevo = await create({
+      name: formData.name,
+      diameter_mm: parseFloat(formData.diameter_mm),
+      r_ac_75_ohm_km: parseFloat(formData.r_ac_75_ohm_km),
+      r_ac_25_ohm_km: parseFloat(formData.r_ac_25_ohm_km),
+      emissivity: parseFloat(formData.emissivity),
+      absorptivity: parseFloat(formData.absorptivity),
+      max_temp_c: parseFloat(formData.max_temp_c),
+    });
+    if (nuevo) {
       onChange(nuevo);
       setShowForm(false);
-    } catch (err) {
-      setFormError(err.message);
-    } finally {
-      setSaving(false);
+    } else {
+      setFormError(apiError ?? "Error al guardar.");
     }
   };
-
-  if (loading) return <p className={styles.loading}>Cargando conductores…</p>;
 
   return (
     <div className={styles.wrap}>
@@ -58,21 +58,33 @@ export default function ConductorSelector({ selected, onChange }) {
           value={selectedConductor?.id ?? ""}
           onChange={handleSelect}
         >
-          {conductors.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          <optgroup label="Catálogo estándar">
+            {conductors
+              .filter((c) => c.id.startsWith("local-"))
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </optgroup>
+          {custom.length > 0 && (
+            <optgroup label="Mis conductores">
+              {custom.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
-        {fromApi && (
-          <button
-            className={styles.addBtn}
-            onClick={() => setShowForm((v) => !v)}
-            title="Añadir conductor"
-          >
-            {showForm ? "✕" : "+"}
-          </button>
-        )}
+
+        <button
+          className={styles.addBtn}
+          onClick={() => setShowForm((v) => !v)}
+          title="Añadir conductor"
+        >
+          {showForm ? "✕" : "+"}
+        </button>
       </div>
 
       {selectedConductor && (
@@ -83,13 +95,6 @@ export default function ConductorSelector({ selected, onChange }) {
           <span>ε: {selectedConductor.emissivity}</span>
           <span>Tmax: {selectedConductor.max_temp_c} °C</span>
         </div>
-      )}
-
-      {!fromApi && (
-        <p className={styles.hint}>
-          Catálogo local — inicia sesión para gestionar conductores en la base
-          de datos.
-        </p>
       )}
 
       {showForm && (

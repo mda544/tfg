@@ -1,7 +1,3 @@
-"""
-GET /api/v1/elevation → altitud de un punto geográfico (DEM preview)
-"""
-
 from fastapi import APIRouter, HTTPException
 from app.api.schemas.models import ElevationResponseDTO
 from app.services import elevation_service

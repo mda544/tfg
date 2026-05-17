@@ -10,7 +10,7 @@ from app.domain.segmentation import segment_route, segment_by_spans
 from app.domain.seasonal_scenarios import DEFAULT_SCENARIOS
 from app.domain.entities import Conductor, MeteoConditions, MeteoScenario, SegmentAccumulator
 from app.domain.types import Season
-from app.services.elevation_service import enrich_with_elevation
+from app.services.elevation_service import add_elevation
 from app.infrastructure.repositories.rates_repository import rates_repo
 from app.infrastructure.orm_models import RateResultORM
 from app.api.schemas.models import RateCalculationRequestDTO, RateCalculationResponseDTO
@@ -54,14 +54,9 @@ async def delete(db: AsyncSession, rate_id: str) -> None:
         raise HTTPException(404, detail=f"Rate result {rate_id} not found.")
 
 
-# Normalización
+# Normalización, OpenMeteo usa lng en vez de lon
 
 def _normalize_coordinates(coordinates: list[dict]) -> list[dict]:
-    """
-    Normaliza a clave canónica 'lon' y 'elevation'.
-    Acepta 'lng' (Leaflet) o 'lon' (GeoJSON).
-    Acepta 'altitud' o 'elevation' para la altitud.
-    """
     normalized = []
     for c in coordinates:
         point = {
@@ -83,10 +78,10 @@ async def calculate_seasonal_rates(
     study_case_id: Optional[str] = None,
 ) -> dict:
 
-    # 1. Normalización
+    # Normalización
     coordinates = _normalize_coordinates(req.coordinates)
 
-    # 2. Validación geométrica
+    # Validación geométrica
     validation = validate_route(coordinates)
     if not validation.valid:
         raise HTTPException(status_code=422, detail={
@@ -95,7 +90,7 @@ async def calculate_seasonal_rates(
             "info":     validation.info,
         })
 
-    # 3. Enriquecimiento DEM
+    # Se añade DEM si no se tiene
     elevation_source = "none"
     has_excel_z      = any((c.get("elevation") or 0) > 0 for c in coordinates)
 
@@ -103,16 +98,16 @@ async def calculate_seasonal_rates(
         elevation_source = "excel_z"
     elif req.use_dem:
         try:
-            coordinates      = await enrich_with_elevation(db, coordinates)
+            coordinates      = await add_elevation(db, coordinates)
             elevation_source = "open_meteo_dem"
         except Exception as e:
             print(f"[DEM] Enrichment failed: {e}")
             elevation_source = "dem_error"
 
-    # 4. Conductor — DTO → entidad de dominio
+    # ConductorDTO → entidad de dominio
     conductor = Conductor(**req.conductor.model_dump())
 
-    # 5. Escenarios meteorológicos
+    # Escenarios meteorológicos
     scenarios: dict[Season, MeteoScenario] = (
         {
             s.season: MeteoScenario(
@@ -129,7 +124,7 @@ async def calculate_seasonal_rates(
         else DEFAULT_SCENARIOS
     )
 
-    # 6. Segmentación
+    # Segmentación
     if req.use_real_spans and len(coordinates) >= 2:
         segments     = segment_by_spans(coordinates)
         segment_mode = f"real_spans ({len(segments)} spans)"
@@ -142,7 +137,7 @@ async def calculate_seasonal_rates(
     if not segments:
         raise HTTPException(status_code=400, detail="No segments could be generated.")
 
-    # 7. Cálculo IEEE 738 por segmento
+    # Cálculo IEEE 738 por segmento
     results = []
     for i, segment in enumerate(segments):
         elevation = float(segment.elevation_m or 0.0)
@@ -197,7 +192,7 @@ async def calculate_seasonal_rates(
             "design_rate_a": min(acc.rates.values()),
         })
 
-    # 8. Construir respuesta
+    # Construir respuesta
     response = {
         "id":             str(uuid.uuid4()),
         "study_case_id":  study_case_id,
@@ -222,7 +217,7 @@ async def calculate_seasonal_rates(
         "warnings": validation.warnings,
     }
 
-    # 9. Persistir en BD
+    # Persistir en BD
     saved            = await rates_repo.save(db, response)
     response["created_at"] = saved.created_at.isoformat()
 

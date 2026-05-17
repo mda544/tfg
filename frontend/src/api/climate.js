@@ -22,17 +22,3 @@ export async function getClimatePercentiles(
     throw new Error(extractErrorMessage(err));
   }
 }
-
-/**
- * Obtiene la altitud de un punto geográfico (preview DEM).
- */
-export async function getElevation(lat, lon) {
-  try {
-    const { data } = await apiClient.get("/elevation/", {
-      params: { lat, lon },
-    });
-    return data; // { lat, lon, elevation_m }
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
-}

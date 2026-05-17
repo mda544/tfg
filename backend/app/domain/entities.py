@@ -7,9 +7,7 @@ from app.domain.types import Season
 
 @dataclass
 class Conductor:
-    """Parámetros eléctricos y térmicos del conductor.
-    Construido en rates_service desde ConductorDTO.
-    Consumido por IEEE738Calculator._build_cable."""
+    # Parámetros eléctricos y térmicos del conductor.
     diameter_mm:      float
     r_ac_75_ohm_km:   float
     r_ac_25_ohm_km:   float
@@ -20,9 +18,7 @@ class Conductor:
 
 @dataclass
 class MeteoConditions:
-    """Condiciones meteorológicas de un punto y momento concreto.
-    Construido en rates_service para cada segmento y escenario.
-    Consumido por IEEE738Calculator._build_case."""
+    # Condiciones meteorológicas de un punto y momento concreto.
     temp_amb_c:          float
     wind_speed_ms:       float
     wind_angle_deg:      float
@@ -32,9 +28,7 @@ class MeteoConditions:
 
 @dataclass
 class SegmentRating:
-    """Resultado del cálculo IEEE 738 para un segmento y escenario.
-    Producido por IEEE738Calculator.calcular.
-    Consumido por rates_service para construir la respuesta."""
+    # Resultado del cálculo IEEE 738 para un segmento y escenario.
     ampacity_a:       float
     temp_conductor_c: float
     qc_wm:            float
@@ -48,9 +42,7 @@ class SegmentRating:
 
 @dataclass
 class Segment:
-    """Segmento del trazado con geometría y altitud media.
-    Producido por segment_route o segment_by_spans.
-    Consumido por rates_service para iterar el cálculo IEEE 738."""
+    # Segmento de la linea con geometría y altitud media.
     id:           str
     index:        int
     start_point:  dict
@@ -65,8 +57,7 @@ class Segment:
 
 @dataclass
 class ValidationResult:
-    """Resultado de validate_route.
-    Si valid=False, rates_service lanza 422 con errores e info."""
+    # Resultado de validate_route.
     valid:    bool
     errors:   list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -77,9 +68,7 @@ class ValidationResult:
 
 @dataclass
 class MeteoScenario:
-    """Condiciones meteorológicas conservadoras de un escenario estacional.
-    DEFAULT_SCENARIOS contiene los valores por defecto para la Península.
-    El usuario puede sobreescribirlos vía MeteoScenarioDTO."""
+    # Condiciones meteorológicas conservadoras de un escenario estacional.
     name:                str
     season:              Season
     temp_amb_c:          float
@@ -91,8 +80,7 @@ class MeteoScenario:
 
 @dataclass
 class SegmentAccumulator:
-    """Acumulador de resultados para un segmento durante el cálculo.
-    Solo vive dentro de rates_service.calculate_seasonal_rates."""
+    # Acumulador de resultados para un segmento durante el cálculo.
     segment_id:      str
     length_km:       float
     avg_elevation_m: float
@@ -104,9 +92,7 @@ class SegmentAccumulator:
 
 @dataclass
 class SeasonalPercentiles:
-    """Percentiles estadísticos históricos para una estación concreta.
-    Producida por ClimateProcessor, cacheada en disco por historical_cache.
-    Entidad de dominio pura — no hereda de BaseModel."""
+    # Percentiles estadísticos históricos para una estación concreta.
     season:            Season
     lat:               float
     lon:               float

@@ -2,21 +2,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from app.infrastructure.orm_models import ClimateCacheORM, ElevationCacheORM
+from app.infrastructure.orm_models import ClimateCacheORM
 from app.domain.entities import SeasonalPercentiles
 from app.domain.types import Season
 
 
-class CacheRepository:
+class ClimateRepository:
 
     def _round_coords(self, lat: float, lon: float) -> tuple[float, float]:
-        """Redondear a 0.1° — resolución de ~9-11km (ERA5-Land / Open-Meteo)."""
+        """Redondear a 0.1° — resolución de ~9-11 km (ERA5 / Open-Meteo)."""
         return round(lat, 1), round(lon, 1)
-
-    def _round_elev(self, val: float) -> float:
-        return round(val, 3)
-
-    # Climate cache 
 
     async def get_climate(
         self, db: AsyncSession, lat: float, lon: float, source: str
@@ -75,27 +70,5 @@ class CacheRepository:
             ).on_conflict_do_nothing(constraint="uq_climate_cache")
             await db.execute(stmt)
 
-    # Elevation cache 
 
-    async def get_elevation(
-        self, db: AsyncSession, lat: float, lon: float
-    ) -> float | None:
-        result = await db.execute(
-            select(ElevationCacheORM.elevation_m)
-            .where(ElevationCacheORM.lat == self._round_elev(lat))
-            .where(ElevationCacheORM.lon == self._round_elev(lon))
-        )
-        return result.scalar_one_or_none()
-
-    async def save_elevation(
-        self, db: AsyncSession, lat: float, lon: float, elevation_m: float
-    ) -> None:
-        stmt = insert(ElevationCacheORM).values(
-            lat         = self._round_elev(lat),
-            lon         = self._round_elev(lon),
-            elevation_m = elevation_m,
-        ).on_conflict_do_nothing(constraint="uq_elevation_cache")
-        await db.execute(stmt)
-
-
-cache_repo = CacheRepository()
+climate_repo = ClimateRepository()

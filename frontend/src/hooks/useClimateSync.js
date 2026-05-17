@@ -16,10 +16,8 @@ export function useClimateSync() {
 
     try {
       const mid = coordenadas[Math.floor(coordenadas.length / 2)];
-      // coordenadas ya usan {lat, lon} — clave correcta para el backend
       const data = await getClimatePercentiles(mid.lat, mid.lon, source);
 
-      // data.percentiles: { verano: { temp_p90_c, wind_p10_ms, radiation_p90_wm2, ... }, ... }
       const nuevosEscenarios = {};
       Object.entries(data.percentiles).forEach(([estacion, p]) => {
         nuevosEscenarios[estacion] = {

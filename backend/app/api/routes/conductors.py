@@ -5,7 +5,7 @@ from app.infrastructure.database import get_db
 from app.api.schemas.models import ConductorCreateDTO, ConductorResponseDTO
 from app.services import conductors_service
 from app.infrastructure.orm_models import UserORM
-from app.api.routes.auth import get_current_user   
+from app.api.deps import get_current_user   
 
 router = APIRouter()
 

@@ -1,10 +1,3 @@
-"""
-POST   /api/v1/rates              → calcular y persistir (201)
-GET    /api/v1/rates?case_id=...  → listar resultados de un caso
-GET    /api/v1/rates/{id}         → recuperar resultado
-DELETE /api/v1/rates/{id}         → eliminar resultado
-"""
-
 import traceback
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, status

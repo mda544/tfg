@@ -17,7 +17,13 @@ class Settings(BaseSettings):
     # Base de datos
     database_url: str
 
-    # JWT
+    # APIs externas
+    openmeteo_url: str = "https://archive-api.open-meteo.com/v1/archive"
+    nasa_power_url: str = "https://power.larc.nasa.gov/api/temporal/daily/point"
+    # elevación
+    openmeteo_elevation_url: str = "https://api.open-meteo.com/v1/elevation"
+    opentopodata_url:        str = "https://api.opentopodata.org/v1/srtm30m"
+    
     jwt_secret:      str
     jwt_algorithm:   str = "HS256"
     jwt_expires_min: int = 1440

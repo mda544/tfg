@@ -1,107 +1,107 @@
 from app.domain.entities import ValidationResult
 from app.core.utils.geo import haversine_m
 
-COVERAGE = {
+COBERTURA = {
     "Open-Meteo":            {"lat": (-90,  90), "lon": (-180, 180)},
     "NASA POWER":            {"lat": (-90,  90), "lon": (-180, 180)},
     "Copernicus DEM GLO-30": {"lat": (-90,  84), "lon": (-180, 180)},
 }
 
-LIMITS = {
-    "min_points":       2,
-    "min_length_m":     100,
-    "max_length_km":    500,
-    "max_bbox_deg":     10,
-    "max_span_km":      50,
-    "max_intersect_check": 200,
+LIMITES = {
+    "min_puntos":          2,
+    "min_longitud_m":      100,
+    "max_longitud_km":     500,
+    "max_bbox_grados":     10,
+    "max_vano_km":         50,
+    "max_check_intersect": 200,
 }
 
 
-def validate_route(coordinates: list[dict]) -> ValidationResult:
-    errors   = []
-    warnings = []
-    info     = {"n_points": len(coordinates)}
+def validate_route(coordenadas: list[dict]) -> ValidationResult:
+    errores    = []
+    avisos     = []
+    info       = {"n_puntos": len(coordenadas)}
 
-    if len(coordinates) < LIMITS["min_points"]:
+    if len(coordenadas) < LIMITES["min_puntos"]:
         return ValidationResult(
-            valid  = False,
-            errors = [f"Route has {len(coordinates)} point(s). Minimum: {LIMITS['min_points']}."],
-            info   = info,
+            valid   = False,
+            errors  = [f"El trazado tiene {len(coordenadas)} punto(s). Mínimo: {LIMITES['min_puntos']}."],
+            info    = info,
         )
 
-    out_of_range = [
-        i for i, c in enumerate(coordinates)
+    fuera_rango = [
+        i for i, c in enumerate(coordenadas)
         if not (-90 <= c["lat"] <= 90) or not (-180 <= c["lon"] <= 180)
     ]
-    if out_of_range:
-        errors.append(
-            f"{len(out_of_range)} point(s) outside WGS84 range "
-            f"(indices: {out_of_range[:5]}{'…' if len(out_of_range) > 5 else ''})."
+    if fuera_rango:
+        errores.append(
+            f"{len(fuera_rango)} punto(s) fuera del rango WGS84 "
+            f"(índices: {fuera_rango[:5]}{'…' if len(fuera_rango) > 5 else ''})."
         )
-        return ValidationResult(valid=False, errors=errors, info=info)
+        return ValidationResult(valid=False, errors=errores, info=info)
 
-    lats = [c["lat"] for c in coordinates]
-    lons = [c["lon"] for c in coordinates]
+    lats = [c["lat"] for c in coordenadas]
+    lons = [c["lon"] for c in coordenadas]
     bbox = {
-        "min_lat": min(lats), "max_lat": max(lats),
-        "min_lon": min(lons), "max_lon": max(lons),
+        "lat_min": min(lats), "lat_max": max(lats),
+        "lon_min": min(lons), "lon_max": max(lons),
     }
     info["bbox"] = bbox
-    span_lat = bbox["max_lat"] - bbox["min_lat"]
-    span_lon = bbox["max_lon"] - bbox["min_lon"]
+    span_lat = bbox["lat_max"] - bbox["lat_min"]
+    span_lon = bbox["lon_max"] - bbox["lon_min"]
 
-    if span_lat > LIMITS["max_bbox_deg"] or span_lon > LIMITS["max_bbox_deg"]:
-        warnings.append(
-            f"Wide bounding box: {span_lat:.1f}° lat × {span_lon:.1f}° lon. "
-            f"Check for erroneous coordinates."
+    if span_lat > LIMITES["max_bbox_grados"] or span_lon > LIMITES["max_bbox_grados"]:
+        avisos.append(
+            f"Bounding box muy amplio: {span_lat:.1f}° lat × {span_lon:.1f}° lon. "
+            f"Comprueba que no hay coordenadas erróneas."
         )
 
-    length_m  = sum(
-        haversine_m(coordinates[i], coordinates[i + 1])
-        for i in range(len(coordinates) - 1)
+    longitud_m  = sum(
+        haversine_m(coordenadas[i], coordenadas[i + 1])
+        for i in range(len(coordenadas) - 1)
     )
-    length_km = length_m / 1000.0
-    info["length_km"] = round(length_km, 2)
+    longitud_km = longitud_m / 1000.0
+    info["longitud_km"] = round(longitud_km, 2)
 
-    if length_m < LIMITS["min_length_m"]:
-        errors.append(
-            f"Route too short: {length_m:.0f} m. Minimum: {LIMITS['min_length_m']} m."
+    if longitud_m < LIMITES["min_longitud_m"]:
+        errores.append(
+            f"Trazado demasiado corto: {longitud_m:.0f} m. Mínimo: {LIMITES['min_longitud_m']} m."
         )
-    elif length_km > LIMITS["max_length_km"]:
-        warnings.append(
-            f"Long route: {length_km:.0f} km. Calculation may take several minutes."
+    elif longitud_km > LIMITES["max_longitud_km"]:
+        avisos.append(
+            f"Trazado muy largo: {longitud_km:.0f} km. El cálculo puede tardar varios minutos."
         )
 
-    long_spans = []
-    for i in range(len(coordinates) - 1):
-        d_km = haversine_m(coordinates[i], coordinates[i + 1]) / 1000.0
-        if d_km > LIMITS["max_span_km"]:
-            long_spans.append({"from": i, "to": i + 1, "km": round(d_km, 1)})
-    if long_spans:
-        warnings.append(
-            f"{len(long_spans)} span(s) > {LIMITS['max_span_km']} km between consecutive points."
+    vanos_largos = []
+    for i in range(len(coordenadas) - 1):
+        d_km = haversine_m(coordenadas[i], coordenadas[i + 1]) / 1000.0
+        if d_km > LIMITES["max_vano_km"]:
+            vanos_largos.append({"desde": i, "hasta": i + 1, "km": round(d_km, 1)})
+    if vanos_largos:
+        avisos.append(
+            f"{len(vanos_largos)} vano(s) con separación > {LIMITES['max_vano_km']} km entre apoyos consecutivos."
         )
-    info["long_spans"] = long_spans
+    info["vanos_largos"] = vanos_largos
 
-    for source, cov in COVERAGE.items():
-        out = [
-            c for c in coordinates
-            if not (cov["lat"][0] <= c["lat"] <= cov["lat"][1])
-            or not (cov["lon"][0] <= c["lon"] <= cov["lon"][1])
+    for fuente, cob in COBERTURA.items():
+        fuera = [
+            c for c in coordenadas
+            if not (cob["lat"][0] <= c["lat"] <= cob["lat"][1])
+            or not (cob["lon"][0] <= c["lon"] <= cob["lon"][1])
         ]
-        if out:
-            warnings.append(f"{len(out)} point(s) outside {source} coverage.")
+        if fuera:
+            avisos.append(f"{len(fuera)} punto(s) fuera de la cobertura de {fuente}.")
 
-    if len(coordinates) - 1 <= LIMITS["max_intersect_check"]:
-        intersections = _detect_self_intersections(coordinates)
-        if intersections:
-            warnings.append(f"Route self-intersects at {len(intersections)} point(s).")
-            info["self_intersects"] = intersections
+    if len(coordenadas) - 1 <= LIMITES["max_check_intersect"]:
+        intersections  = _detect_self_intersections(coordenadas)
+        if intersections :
+            avisos.append(f"El trazado se autointersecta en {len(intersections )} punto(s).")
+            info["autointersecciones "] = intersections 
 
     return ValidationResult(
-        valid    = len(errors) == 0,
-        errors   = errors,
-        warnings = warnings,
+        valid    = len(errores) == 0,
+        errors   = errores,
+        warnings = avisos,
         info     = info,
     )
 
@@ -116,16 +116,17 @@ def _segments_intersect(p1, p2, p3, p4) -> bool:
     return (ccw(A, C, D) != ccw(B, C, D)) and (ccw(A, B, C) != ccw(A, B, D))
 
 
-def _detect_self_intersections(coordinates: list[dict]) -> list[dict]:
-    intersections = []
-    n = len(coordinates)
+# Devuelve los pares de segmentos que se cruzan. Limitado a trazados cortos.
+def _detect_self_intersections(coordenadas: list[dict]) -> list[dict]:
+    intersections  = []
+    n = len(coordenadas)
     for i in range(n - 1):
         for j in range(i + 2, n - 1):
             if i == 0 and j == n - 2:
                 continue
             if _segments_intersect(
-                coordinates[i],     coordinates[i + 1],
-                coordinates[j],     coordinates[j + 1],
+                coordenadas[i],     coordenadas[i + 1],
+                coordenadas[j],     coordenadas[j + 1],
             ):
-                intersections.append({"seg_a": i, "seg_b": j})
-    return intersections
+                intersections .append({"segmento_a": i, "segmento_b": j})
+    return intersections 

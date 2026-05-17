@@ -1,0 +1,27 @@
+export const ESTACION_LABEL = {
+  verano: "Verano",
+  invierno: "Invierno",
+  primavera: "Primavera",
+  otono: "Otoño",
+};
+
+export const ESTACION_COLOR = {
+  verano: "#D85A30",
+  invierno: "#185FA5",
+  primavera: "#3B6D11",
+  otono: "#BA7517",
+};
+
+export const ELEVATION_SOURCE_LABEL = {
+  excel_z: "Z del Excel",
+  open_meteo_dem: "DEM Open-Meteo",
+  sin_altitud: "Sin altitud (0 m)",
+  sin_altitud_error: "Sin altitud (error DEM)",
+};
+
+export function colorAmpacidad(a) {
+  if (a < 500) return { bg: "#FCEBEB", text: "#791F1F" };
+  if (a < 800) return { bg: "#FAEEDA", text: "#633806" };
+  if (a < 1100) return { bg: "#EAF3DE", text: "#27500A" };
+  return { bg: "#E1F5EE", text: "#085041" };
+}

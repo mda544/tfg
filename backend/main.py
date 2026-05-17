@@ -6,17 +6,16 @@ from app.api.routes import auth, rates, climate, elevation, conductors, lines, s
 from app.core.config import settings
 from app.infrastructure.database import engine, Base
 from app.infrastructure import orm_models
-from app.infrastructure.clients import weather_client  
+from app.infrastructure.clients.http_client import startup, shutdown 
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await weather_client.startup()         
-
+    await startup()                                    
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    await weather_client.shutdown()         
+    await shutdown()                                   
     await engine.dispose()
 
 
@@ -36,7 +35,7 @@ app.add_middleware(
 )
 
 # Público
-app.include_router(auth.router,        prefix="/api/v1/auth")
+app.include_router(auth.router,        prefix="/api/v1")
 
 # Protegidos
 app.include_router(conductors.router,  prefix="/api/v1/conductors")

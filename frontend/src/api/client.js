@@ -19,9 +19,14 @@ apiClient.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("user");
-      window.dispatchEvent(new Event("auth:logout"));
+      // Solo logout si el 401 viene de un endpoint protegido, no de /auth/
+      const url = error.config?.url ?? "";
+      const PUBLIC = ["/auth/token", "/users"];
+      if (!PUBLIC.some((u) => url.includes(u))) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        window.dispatchEvent(new Event("auth:logout"));
+      }
     }
     return Promise.reject(error);
   },

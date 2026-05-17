@@ -19,11 +19,11 @@ def _to_wgs84(p: Point, transformer_inv: Transformer) -> dict:
     return {"lat": round(lat, 6), "lon": round(lon, 6)}
 
 
+# Segmenta el trazado en tramos de longitud fija.
 def segment_route(
     coordinates: list[dict],
     step_m:      float = 500.0,
 ) -> List[Segment]:
-    """Segmenta el trazado en tramos de longitud fija."""
     line_proj   = _project_line(coordinates)
     total_len   = line_proj.length
     n_segments  = max(1, int(total_len / step_m))
@@ -60,13 +60,8 @@ def segment_route(
 
     return segments
 
-
+# Crea un segmento por vano real entre apoyos consecutivos.
 def segment_by_spans(coordinates: list[dict]) -> List[Segment]:
-    """
-    Crea un segmento por vano real entre apoyos consecutivos.
-    Coordenadas normalizadas a clave canónica 'lon'.
-    La clave de altitud es 'elevation' (normalizada en rates_service).
-    """
     segments = []
     for i in range(len(coordinates) - 1):
         p_start    = coordinates[i]
