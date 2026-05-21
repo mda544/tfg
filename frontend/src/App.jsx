@@ -1,239 +1,91 @@
-import { useState, useRef, useCallback } from "react";
-import { useAuth } from "./auth/useAuth";
-import MapaTrazado from "./features/map/MapaTrazado";
-import GeometryUploader from "./components/GeometryUploader";
-import PanelEscenariosEstacionales from "./features/scenarios/PanelEscenariosEstacionales";
-import PanelValidacion from "./components/PanelValidacion";
-import PanelResultadosRates from "./features/results/PanelResultadosRates";
-import ConductorSelector from "./features/conductor/ConductorSelector";
-import { CONDUCTORES_FALLBACK } from "./hooks/useConductors";
-import { useClimateSync } from "./hooks/useClimateSync";
-import { useRateCalculation } from "./hooks/useRateCalculation";
-import {
-  validarTrazado,
-  densificarTrazado,
-  normalizarALatLon,
-} from "./utils/geometryValidator";
-import { ESCENARIOS_DEFAULT } from "./features/scenarios/scenarioDefaults";
+import { useState, useCallback }     from "react";
+import { useAuth }                    from "./auth/useAuth";
+import { useRoute }                   from "./hooks/useRoute";
+import { useCalculateRates }          from "./hooks/useCalculateRates";
+import { DEFAULT_CONDUCTORS }         from "./features/conductor/conductorData";
+import { DEFAULT_SCENARIOS }          from "./features/scenarios/scenarioDefaults";
+
+import AppHeader          from "./components/AppHeader";
+import PanelConfig        from "./features/calculator/PanelConfig";
+import RouteMap           from "./features/map/RouteMap";
+import RatesResultsPanel  from "./features/results/RatesResultsPanel";
 import "./App.css";
 
 export default function App() {
-  const mapaRef = useRef(null);
   const { logout, session } = useAuth();
 
-  // Estado de trazado
-  const [datosMapa, setDatosMapa] = useState(null);
-  const [validacion, setValidacion] = useState(null);
+  const [conductor,     setConductor]     = useState(DEFAULT_CONDUCTORS[0]);
+  const [scenarios,     setScenarios]     = useState(DEFAULT_SCENARIOS);
+  const [useDem,        setUseDem]        = useState(true);
+  const [climateSource, setClimateSource] = useState("openmeteo");
 
-  // Estado de configuración
-  const [escenarios, setEscenarios] = useState(ESCENARIOS_DEFAULT);
-  const [useDem, setUseDem] = useState(true);
-  const [fuenteClima, setFuenteClima] = useState("openmeteo");
+  const {
+    mapRef,
+    routeData,
+    validation,
+    loadingClimate,
+    climateSlowLoad,
+    loadRoute,
+    clear,
+    resyncClimate,
+  } = useRoute(climateSource);
 
-  // Conductores
-  const [conductor, setConductor] = useState(CONDUCTORES_FALLBACK[0]);
-
-  // Hooks de negocio
-  const { sync: syncClima, loading: cargandoClima } = useClimateSync();
   const {
     calculate,
-    resultado,
-    loading: calculando,
-    error: errorCalculo,
-  } = useRateCalculation();
+    result,
+    loading: calculating,
+    error:   calcError,
+  } = useCalculateRates();
 
-  // Helpers de trazado
-  const procesarCoordenadas = useCallback(async (rawCoords) => {
-    const normalizadas = normalizarALatLon(rawCoords);
-    const densas = densificarTrazado(normalizadas, 500);
-    setValidacion(validarTrazado(densas));
-    return densas;
-  }, []);
-
-  const sincronizarClima = useCallback(
-    async (coordenadas, fuente) => {
-      const nuevosEscenarios = await syncClima(
-        coordenadas,
-        fuente ?? fuenteClima,
-      );
-      if (nuevosEscenarios) setEscenarios(nuevosEscenarios);
+  const handleRouteLoaded = useCallback(
+    async (rawFeature) => {
+      const { scenarios: newScenarios } = await loadRoute(rawFeature);
+      if (newScenarios) setScenarios(newScenarios);
     },
-    [syncClima, fuenteClima],
+    [loadRoute],
   );
 
-  // Eventos del mapa
-  const manejarNuevosDibujos = useCallback(
-    async (datos) => {
-      const densas = await procesarCoordenadas(datos.coordenadas);
-      const feature = { ...datos, coordenadas: densas };
-      setDatosMapa(feature);
-      mapaRef.current?.dibujarGeometria(feature);
-      sincronizarClima(densas);
+  const handleClimateSourceChange = useCallback(
+    async (e) => {
+      const source = e.target.value;
+      setClimateSource(source);
+      const newScenarios = await resyncClimate(source);
+      if (newScenarios) setScenarios(newScenarios);
     },
-    [procesarCoordenadas, sincronizarClima],
+    [resyncClimate],
   );
 
-  const manejarGeometriaCargada = useCallback(
-    async (featureOArray) => {
-      const feature = Array.isArray(featureOArray)
-        ? featureOArray[0]
-        : featureOArray;
-      const densas = await procesarCoordenadas(feature.coordenadas);
-      const featureFinal = { ...feature, coordenadas: densas };
-      setDatosMapa(featureFinal);
-      mapaRef.current?.dibujarGeometria(featureFinal);
-      sincronizarClima(densas);
-    },
-    [procesarCoordenadas, sincronizarClima],
-  );
+  const handleCalculate = useCallback(async () => {
+    if (!routeData || validation?.valid === false) return;
+    await calculate({ coordinates: routeData.coordinates, conductor, scenarios, useDem });
+  }, [routeData, validation, conductor, scenarios, useDem, calculate]);
 
-  const manejarBorrado = useCallback(() => {
-    setDatosMapa(null);
-    setValidacion(null);
-  }, []);
-
-  const borrarTodoElMapa = useCallback(() => {
-    mapaRef.current?.limpiarTodo();
-    setDatosMapa(null);
-    setValidacion(null);
-  }, []);
-
-  // Cambio de fuente climática
-  const manejarCambioFuenteClima = useCallback(
-    (e) => {
-      const nueva = e.target.value;
-      setFuenteClima(nueva);
-      if (datosMapa?.coordenadas)
-        sincronizarClima(datosMapa.coordenadas, nueva);
-    },
-    [datosMapa, sincronizarClima],
-  );
-
-  // Cálculo
-  const calcular = useCallback(async () => {
-    if (!datosMapa || !conductor || validacion?.valido === false) return;
-    await calculate({
-      coordenadas: datosMapa.coordenadas,
-      conductor,
-      escenarios,
-      useDem,
-    });
-  }, [datosMapa, conductor, escenarios, useDem, validacion, calculate]);
-
-  const puedeCalcular =
-    Boolean(datosMapa) && validacion?.valido !== false && !calculando;
+  const canCalculate = Boolean(routeData) && validation?.valid !== false && !calculating;
 
   return (
     <div className="app-container">
-      <header className="app-header">
-        <div className="header-brand">
-          <span className="header-icon">⚡</span>
-          <h1>AmpacityGIS</h1>
-        </div>
-        <div className="header-user">
-          <span>{session?.user?.username}</span>
-          <button className="btn-logout" onClick={logout}>
-            Cerrar sesión
-          </button>
-        </div>
-      </header>
+      <AppHeader username={session?.user?.username} onLogout={logout} />
 
       <div className="contenido-principal">
-        {/* ── PANEL IZQUIERDO ── */}
-        <aside className="panel-configuracion">
-          <section className="panel-section">
-            <h2>Conductor</h2>
-            <ConductorSelector
-              selected={conductor?.id}
-              onChange={(c) => setConductor(c.id)}
-            />
-          </section>
+        <PanelConfig
+          conductor={conductor}             onConductorChange={setConductor}
+          scenarios={scenarios}             onScenariosChange={setScenarios}
+          useDem={useDem}                   onUseDemChange={setUseDem}
+          climateSource={climateSource}     onClimateSourceChange={handleClimateSourceChange}
+          routeData={routeData}             validation={validation}
+          loadingClimate={loadingClimate}   climateSlowLoad={climateSlowLoad}
+          onRouteLoaded={handleRouteLoaded} onClear={clear}
+          onCalculate={handleCalculate}     calculating={calculating}
+          canCalculate={canCalculate}       calcError={calcError}
+        />
 
-          <section className="panel-section">
-            <h2>Opciones de cálculo</h2>
-            <label className="toggle-label">
-              <input
-                type="checkbox"
-                checked={useDem}
-                onChange={(e) => setUseDem(e.target.checked)}
-              />
-              <span>Consultar altitud DEM</span>
-            </label>
-            <p className="hint-text">
-              {useDem
-                ? "Se consultará la altitud via API. Si el Excel tiene columna Z, se usa directamente."
-                : "Todos los tramos se calculan a 0 m de altitud."}
-            </p>
-
-            <label className="field-label" style={{ marginTop: "10px" }}>
-              Fuente climática histórica
-            </label>
-            <select
-              className="select-field"
-              value={fuenteClima}
-              onChange={manejarCambioFuenteClima}
-            >
-              <option value="openmeteo">
-                Copernicus ERA5/ERA5-Land (Open-Meteo) — 9-25 km
-              </option>
-              <option value="nasa">MERRA-2 (NASA POWER) — ~50 km</option>
-            </select>
-          </section>
-
-          <section className="panel-section">
-            <h2>Geometría</h2>
-            <GeometryUploader onGeometriaCargada={manejarGeometriaCargada} />
-            <button className="btn-secondary" onClick={borrarTodoElMapa}>
-              Limpiar mapa
-            </button>
-            <div className="estado-mapa">
-              {datosMapa ? (
-                <p className="ok">
-                  Trazado listo · {datosMapa.coordenadas.length} apoyos
-                </p>
-              ) : (
-                <p className="espera"> Dibuja o carga un trazado en el mapa</p>
-              )}
-            </div>
-            {cargandoClima && (
-              <div className="clima-banner">
-                Consultando datos climáticos históricos…
-              </div>
-            )}
-          </section>
-
-          <section className="panel-section">
-            <h2>Escenarios estacionales</h2>
-            <PanelEscenariosEstacionales
-              conductorRef={conductor}
-              escenarios={escenarios}
-              onChange={setEscenarios}
-            />
-          </section>
-
-          <PanelValidacion validacion={validacion} />
-
-          {errorCalculo && (
-            <div className="error-banner">Error: {errorCalculo}</div>
-          )}
-
-          <button
-            className="btn-calcular"
-            onClick={calcular}
-            disabled={!puedeCalcular}
-          >
-            {calculando ? " Calculando…" : "Calcular rates estacionales"}
-          </button>
-        </aside>
-
-        {/* ── PANEL DERECHO ── */}
         <main className="mapa-wrapper">
-          <MapaTrazado
-            ref={mapaRef}
-            onDatosDibujados={manejarNuevosDibujos}
-            onDatosBorrados={manejarBorrado}
+          <RouteMap
+            ref={mapRef}
+            onRouteDrawn={handleRouteLoaded}
+            onRouteCleared={clear}
           />
-          {resultado && <PanelResultadosRates resultado={resultado} />}
+          {result && <RatesResultsPanel result={result} />}
         </main>
       </div>
     </div>

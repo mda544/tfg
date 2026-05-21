@@ -1,6 +1,6 @@
-export const ESTACIONES = ["verano", "invierno", "primavera", "otono"];
+export const SEASONS = ["verano", "invierno", "primavera", "otono"];
 
-export const ESCENARIOS_DEFAULT = {
+export const DEFAULT_SCENARIOS  = {
   verano:    { temp: 38, viento: 0.6, angulo: 90, radiacion: 900 },
   invierno:  { temp: 5,  viento: 3.0, angulo: 90, radiacion: 200 },
   primavera: { temp: 18, viento: 2.5, angulo: 90, radiacion: 650 },

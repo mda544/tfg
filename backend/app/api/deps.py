@@ -11,13 +11,16 @@ from app.infrastructure.orm_models import UserORM
 
 _bearer = HTTPBearer()
 
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> UserORM:
     token = credentials.credentials
     try:
-        payload  = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        )
         user_id: str = payload.get("sub")
         if not user_id:
             raise JWTError

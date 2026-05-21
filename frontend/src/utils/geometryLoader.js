@@ -1,7 +1,7 @@
 import { read as readShapefile } from "shapefile";
 
 export async function parseGeoJSON(file) {
-  const text = await file.text();
+  const text    = await file.text();
   const geojson = JSON.parse(text);
 
   const features =
@@ -17,10 +17,8 @@ export async function parseGeoJSON(file) {
 export async function parseSHP(shpFile, dbfFile = null) {
   const shpBuffer = await shpFile.arrayBuffer();
   const dbfBuffer = dbfFile ? await dbfFile.arrayBuffer() : undefined;
-  const features = [];
-  const source = await readShapefile(shpBuffer, dbfBuffer, {
-    encoding: "utf-8",
-  });
+  const features  = [];
+  const source    = await readShapefile(shpBuffer, dbfBuffer, { encoding: "utf-8" });
 
   let result = await source.read();
   while (!result.done) {
@@ -31,7 +29,7 @@ export async function parseSHP(shpFile, dbfFile = null) {
   return features;
 }
 
-/** Convierte una Feature GeoJSON al formato interno con {lat, lon} (clave canónica del backend) */
+/** Convierte una Feature GeoJSON al formato interno con {lat, lon}. */
 function featureToInternalFormat(feature) {
   if (!feature?.geometry) return null;
   const { type, coordinates } = feature.geometry;
@@ -39,21 +37,21 @@ function featureToInternalFormat(feature) {
   switch (type) {
     case "LineString":
       return {
-        tipo: "Line",
+        tipo:        "Line",
         // GeoJSON: [lon, lat] → interno: { lat, lon }
-        coordenadas: coordinates.map(([lon, lat]) => ({ lat, lon })),
+        coordinates: coordinates.map(([lon, lat]) => ({ lat, lon })),
         propiedades: feature.properties ?? {},
       };
     case "MultiLineString":
       return {
-        tipo: "Line",
-        coordenadas: coordinates.flat().map(([lon, lat]) => ({ lat, lon })),
+        tipo:        "Line",
+        coordinates: coordinates.flat().map(([lon, lat]) => ({ lat, lon })),
         propiedades: feature.properties ?? {},
       };
     case "Polygon":
       return {
-        tipo: "Polygon",
-        coordenadas: coordinates[0].map(([lon, lat]) => ({ lat, lon })),
+        tipo:        "Polygon",
+        coordinates: coordinates[0].map(([lon, lat]) => ({ lat, lon })),
         propiedades: feature.properties ?? {},
       };
     default:

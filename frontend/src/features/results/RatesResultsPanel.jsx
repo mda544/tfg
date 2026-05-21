@@ -1,19 +1,19 @@
 import {
-  ESTACION_LABEL,
-  ESTACION_COLOR,
+  SEASON_LABEL,
+  SEASON_COLOR,
   ELEVATION_SOURCE_LABEL,
-  colorAmpacidad,
+  ampacityColor,
 } from "./resultsUtils";
-import "./PanelResultadosRates.css";
+import "./RatesResultsPanel.css";
 
-export default function PanelResultadosRates({ resultado }) {
-  if (!resultado) return null;
+export default function RatesResultsPanel({ result }) {
+  if (!result) return null;
 
-  if (resultado.error) {
+  if (result.error) {
     return (
       <div className="prr-panel prr-error">
         <p className="prr-error-titulo">Error en el cálculo</p>
-        <p className="prr-error-msg">{resultado.error}</p>
+        <p className="prr-error-msg">{result.error}</p>
       </div>
     );
   }
@@ -27,7 +27,7 @@ export default function PanelResultadosRates({ resultado }) {
     conductor,
     route_info = {},
     warnings = [],
-  } = resultado;
+  } = result;
 
   const estaciones = Object.keys(rates_by_season);
   const tramoCritico = segments.reduce(
@@ -94,14 +94,14 @@ export default function PanelResultadosRates({ resultado }) {
       <div className="prr-estaciones">
         {estaciones.map((est) => {
           const amp = rates_by_season[est];
-          const c = colorAmpacidad(amp);
+          const c = ampacityColor(amp);
           return (
             <div
               key={est}
               className="prr-est-card"
-              style={{ borderTop: `3px solid ${ESTACION_COLOR[est]}` }}
+              style={{ borderTop: `3px solid ${SEASON_COLOR[est]}` }}
             >
-              <p className="prr-est-nombre">{ESTACION_LABEL[est] ?? est}</p>
+              <p className="prr-est-nombre">{SEASON_LABEL[est] ?? est}</p>
               <p
                 className="prr-est-amp"
                 style={{ color: c.text, background: c.bg }}
@@ -124,8 +124,8 @@ export default function PanelResultadosRates({ resultado }) {
                 <th>Long.</th>
                 <th>Alt.</th>
                 {estaciones.map((e) => (
-                  <th key={e} style={{ color: ESTACION_COLOR[e] }}>
-                    {ESTACION_LABEL[e]?.slice(0, 3)}.
+                  <th key={e} style={{ color: SEASON_COLOR[e] }}>
+                    {SEASON_LABEL[e]?.slice(0, 3)}.
                   </th>
                 ))}
                 <th>Diseño</th>
@@ -135,7 +135,7 @@ export default function PanelResultadosRates({ resultado }) {
             <tbody>
               {segments.map((seg) => {
                 const esCritico = seg.segment_id === tramoCritico.segment_id;
-                const c = colorAmpacidad(seg.design_rate_a);
+                const c = ampacityColor(seg.design_rate_a);
                 const modo = seg.details?.[estaciones[0]]?.conv_mode ?? "—";
                 const altitud = seg.elevation_m ?? 0;
                 return (

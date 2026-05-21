@@ -8,14 +8,14 @@ async def startup() -> None:
     global _client
     _client = httpx.AsyncClient(
         timeout=httpx.Timeout(
-            connect = 10.0,
-            read    = float(settings.openmeteo_timeout),
-            write   = 10.0,
-            pool    = 5.0,
+            connect=10.0,
+            read=float(settings.openmeteo_timeout),
+            write=10.0,
+            pool=5.0,
         ),
         limits=httpx.Limits(
-            max_connections          = 20,
-            max_keepalive_connections = 10,
+            max_connections=20,
+            max_keepalive_connections=10,
         ),
     )
 

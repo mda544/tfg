@@ -1,9 +1,27 @@
 import { useEffect, forwardRef, useImperativeHandle, useRef } from "react";
-import { MapContainer, TileLayer, FeatureGroup, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  FeatureGroup,
+  useMap,
+  LayersControl,
+} from "react-leaflet";
 import L from "leaflet";
 import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import "leaflet/dist/leaflet.css";
+import { haversineM } from "../../utils/geometryValidator";
+
+const { BaseLayer } = LayersControl;
+
+const ROUTE_STYLE = { color: "#2563eb", weight: 4 };
+const MARKER_STYLE = {
+  radius: 6,
+  color: "white",
+  weight: 2,
+  fillColor: "#ef4444",
+  fillOpacity: 1,
+};
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -15,25 +33,12 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// Haversine inline — Leaflet usa {lat, lng} internamente
-function haversineM(a, b) {
-  const R = 6_371_000;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLon = ((b.lng - a.lng) * Math.PI) / 180;
-  const x =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((a.lat * Math.PI) / 180) *
-      Math.cos((b.lat * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
-}
-
 function formatDistance(m) {
   return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 }
 
-// ── Etiqueta de distancia en tiempo real ──────────────────────────────────────
-const CapaMedicion = ({ maxSpanM }) => {
+// Etiqueta de distancia en tiempo real al dibujar
+const MeasurementLayer = ({ maxSpanM }) => {
   const map = useMap();
   const labelRef = useRef(null);
   const lastPtRef = useRef(null);
@@ -67,8 +72,12 @@ const CapaMedicion = ({ maxSpanM }) => {
     };
     const onMouseMove = (e) => {
       if (!activeRef.current || !lastPtRef.current || !label) return;
+      // haversineM acepta {lat, lng} porque viene de eventos Leaflet
       const cursor = { lat: e.latlng.lat, lng: e.latlng.lng };
-      const dist = haversineM(lastPtRef.current, cursor);
+      const dist = haversineM(
+        { lat: lastPtRef.current.lat, lon: lastPtRef.current.lng },
+        { lat: cursor.lat, lon: cursor.lng },
+      );
       const over = dist > maxSpanM;
       const pt = map.latLngToContainerPoint(e.latlng);
       label.style.left = `${pt.x}px`;
@@ -78,7 +87,7 @@ const CapaMedicion = ({ maxSpanM }) => {
         ? "rgba(200,40,30,0.85)"
         : "rgba(0,0,0,0.72)";
       label.textContent = over
-        ? `⚠ ${formatDistance(dist)} — se auto-segmentará`
+        ? `${formatDistance(dist)} — se auto-segmentará`
         : formatDistance(dist);
     };
     const onDrawEnd = () => {
@@ -106,8 +115,8 @@ const CapaMedicion = ({ maxSpanM }) => {
   return null;
 };
 
-// ── Controles de dibujo Geoman ────────────────────────────────────────────────
-const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
+// Controles de dibujo Geoman
+const DrawingTools = ({ onRouteDrawn, onRouteRemoved }) => {
   const map = useMap();
 
   useEffect(() => {
@@ -130,12 +139,12 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
     const onCreate = (e) => {
       const latlngs = e.layer.getLatLngs();
       const flat = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
-      // Leaflet devuelve {lat, lng} — convertimos a {lat, lon} para el backend
+      // Leaflet devuelve {lat, lng} — convertimos a {lat, lon} (clave canónica)
       const coords = flat.map((p) => ({ lat: p.lat, lon: p.lng }));
       map.removeLayer(e.layer);
-      onDibujoCreado({ tipo: e.shape, coordenadas: coords });
+      onRouteDrawn({ tipo: e.shape, coordinates: coords });
     };
-    const onRemove = (e) => onDibujoBorrado(e.shape);
+    const onRemove = (e) => onRouteRemoved(e.shape);
 
     map.on("pm:create", onCreate);
     map.on("pm:remove", onRemove);
@@ -145,70 +154,53 @@ const HerramientasDibujo = ({ onDibujoCreado, onDibujoBorrado }) => {
       map.off("pm:create", onCreate);
       map.off("pm:remove", onRemove);
     };
-  }, [map, onDibujoCreado, onDibujoBorrado]);
+  }, [map, onRouteDrawn, onRouteRemoved]);
 
   return null;
 };
 
-// ── Componente principal ──────────────────────────────────────────────────────
-const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
+function buildPopup(coord, meta, idx) {
+  return [
+    `<div style="font-family:sans-serif">`,
+    `<h3 style="margin:0 0 5px">Apoyo ${idx + 1}</h3>`,
+    meta.station ? `<b>Estación:</b> ${meta.station}<br>` : "",
+    meta.comment ? `<b>Comentario:</b> ${meta.comment}<br>` : "",
+    meta.altitud ? `<b>Altitud:</b> ${meta.altitud.toFixed(2)} m<br>` : "",
+    "</div>",
+  ].join("");
+}
+
+// Componente principal
+const RouteMap = forwardRef(({ onRouteDrawn, onRouteCleared }, ref) => {
   const mapRef = useRef(null);
   const featureGroupRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
-    // Recibe coordenadas en {lat, lon} y las convierte a [lat, lng] para Leaflet
-    dibujarGeometria(feature) {
+    // Recibe {lat, lon} y los convierte a [lat, lng] para Leaflet
+    drawRoute(feature) {
       const map = mapRef.current;
       const fg = featureGroupRef.current;
       if (!map || !fg || !feature) return;
 
       fg.clearLayers();
-      if (feature.tipo !== "Line" || !feature.coordenadas?.length) return;
+      if (feature.tipo !== "Line" || !feature.coordinates?.length) return;
 
-      const clean = feature.coordenadas.filter(
-        (c) =>
-          typeof c.lat === "number" &&
-          typeof c.lon === "number" &&
-          !isNaN(c.lat) &&
-          !isNaN(c.lon),
-      );
-      if (!clean.length) return;
-
+      const points = feature.coordinates;
       const singulars = feature.propiedades?.puntos_singulares ?? [];
-      const latlngs = clean.map((c) => [c.lat, c.lon]); // Leaflet acepta [lat, lng_value]
+      const latlngs = points.map((c) => [c.lat, c.lon]);
 
       for (let i = 0; i < latlngs.length - 1; i++) {
-        L.polyline([latlngs[i], latlngs[i + 1]], {
-          color: "#2563eb",
-          weight: 4,
-        })
+        L.polyline([latlngs[i], latlngs[i + 1]], ROUTE_STYLE)
           .bindTooltip(`Tramo ${i + 1}`, { sticky: true })
           .addTo(fg);
       }
 
-      clean.forEach((coord, idx) => {
+      points.forEach((coord, idx) => {
         const meta =
           singulars.find((p) => p.lat === coord.lat && p.lon === coord.lon) ??
           {};
-        const popup = [
-          `<div style="font-family:sans-serif">`,
-          `<h3 style="margin:0 0 5px">Apoyo ${idx + 1}</h3>`,
-          meta.station ? `<b>Estación:</b> ${meta.station}<br>` : "",
-          meta.comment ? `<b>Comentario:</b> ${meta.comment}<br>` : "",
-          meta.altitud
-            ? `<b>Altitud:</b> ${meta.altitud.toFixed(2)} m<br>`
-            : "",
-          "</div>",
-        ].join("");
-
-        L.circleMarker([coord.lat, coord.lon], {
-          radius: 6,
-          color: "white",
-          weight: 2,
-          fillColor: "#ef4444",
-          fillOpacity: 1,
-        })
-          .bindPopup(popup)
+        L.circleMarker([coord.lat, coord.lon], MARKER_STYLE)
+          .bindPopup(buildPopup(coord, meta, idx))
           .addTo(fg);
       });
 
@@ -217,7 +209,7 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
         map.fitBounds(bounds, { maxZoom: 16, padding: [20, 20] });
     },
 
-    limpiarTodo() {
+    clearAll() {
       featureGroupRef.current?.clearLayers();
     },
   }));
@@ -238,21 +230,37 @@ const MapaTrazado = forwardRef(({ onDatosDibujados, onDatosBorrados }, ref) => {
         style={{ height: "100%", width: "100%" }}
         ref={mapRef}
       >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        />
+        <LayersControl position="topright">
+          <BaseLayer checked name="OpenStreetMap">
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            />
+          </BaseLayer>
+          <BaseLayer name="Satélite">
+            <TileLayer
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution="© Esri"
+            />
+          </BaseLayer>
+          <BaseLayer name="Topográfico">
+            <TileLayer
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              attribution="© OpenTopoMap"
+            />
+          </BaseLayer>
+        </LayersControl>
         <FeatureGroup ref={featureGroupRef}>
-          <HerramientasDibujo
-            onDibujoCreado={onDatosDibujados}
-            onDibujoBorrado={onDatosBorrados}
+          <DrawingTools
+            onRouteDrawn={onRouteDrawn}
+            onRouteRemoved={onRouteCleared}
           />
-          <CapaMedicion maxSpanM={500} />
+          <MeasurementLayer maxSpanM={500} />
         </FeatureGroup>
       </MapContainer>
     </div>
   );
 });
 
-MapaTrazado.displayName = "MapaTrazado";
-export default MapaTrazado;
+RouteMap.displayName = "RouteMap";
+export default RouteMap;

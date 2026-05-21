@@ -7,33 +7,35 @@ from app.infrastructure.repositories.lines_repository import lines_repo
 from app.infrastructure.repositories.conductors_repository import conductors_repo
 from app.infrastructure.orm_models import StudyCaseORM
 from app.api.schemas.models import (
-    StudyCaseCreateDTO, StudyCaseResponseDTO, MeteoScenarioResponseDTO
+    StudyCaseCreateDTO,
+    StudyCaseResponseDTO,
+    MeteoScenarioResponseDTO,
 )
 
 
 def _to_dto(obj: StudyCaseORM) -> StudyCaseResponseDTO:
     return StudyCaseResponseDTO(
-        id             = obj.id,
-        name           = obj.name,
-        description    = obj.description,
-        line_id        = obj.line_id,
-        conductor_id   = obj.conductor_id,
-        segment_step_m = obj.segment_step_m,
-        use_real_spans = obj.use_real_spans,
-        use_dem        = obj.use_dem,
-        scenarios      = [
+        id=obj.id,
+        name=obj.name,
+        description=obj.description,
+        line_id=obj.line_id,
+        conductor_id=obj.conductor_id,
+        segment_step_m=obj.segment_step_m,
+        use_real_spans=obj.use_real_spans,
+        use_dem=obj.use_dem,
+        scenarios=[
             MeteoScenarioResponseDTO(
-                id                  = s.id,
-                season              = s.season,
-                temp_amb_c          = s.temp_amb_c,
-                wind_speed_ms       = s.wind_speed_ms,
-                wind_angle_deg      = s.wind_angle_deg,
-                solar_radiation_wm2 = s.solar_radiation_wm2,
+                id=s.id,
+                season=s.season,
+                temp_amb_c=s.temp_amb_c,
+                wind_speed_ms=s.wind_speed_ms,
+                wind_angle_deg=s.wind_angle_deg,
+                solar_radiation_wm2=s.solar_radiation_wm2,
             )
             for s in (obj.scenarios or [])
         ],
-        created_at = obj.created_at.isoformat(),
-        updated_at = obj.updated_at.isoformat(),
+        created_at=obj.created_at.isoformat(),
+        updated_at=obj.updated_at.isoformat(),
     )
 
 
@@ -41,7 +43,8 @@ async def _validate_references(
     db: AsyncSession, line_id: str, conductor_id: str
 ) -> None:
     """Verifica que la línea y el conductor referenciados existan.
-    Usa exists() en lugar de get_by_id() — un solo campo, sin traer el objeto completo."""
+    Usa exists() en lugar de get_by_id() — un solo campo, sin traer el objeto completo.
+    """
     if not await lines_repo.exists(db, line_id):
         raise HTTPException(404, detail=f"Line {line_id} not found.")
     if not await conductors_repo.exists(db, conductor_id):

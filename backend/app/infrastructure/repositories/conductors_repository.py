@@ -29,9 +29,7 @@ class ConductorsRepository:
             raise NoResultFound(f"Conductor {conductor_id} not found.")
         return obj
 
-    async def exists(
-        self, db: AsyncSession, conductor_id: str, owner_id: str
-    ) -> bool:
+    async def exists(self, db: AsyncSession, conductor_id: str, owner_id: str) -> bool:
         result = await db.execute(
             select(ConductorORM.id)
             .where(ConductorORM.id == conductor_id)
@@ -49,7 +47,11 @@ class ConductorsRepository:
         return obj
 
     async def update(
-        self, db: AsyncSession, conductor_id: str, owner_id: str, data: ConductorCreateDTO
+        self,
+        db: AsyncSession,
+        conductor_id: str,
+        owner_id: str,
+        data: ConductorCreateDTO,
     ) -> ConductorORM:
         await db.execute(
             update(ConductorORM)
@@ -59,9 +61,7 @@ class ConductorsRepository:
         )
         return await self.get_by_id(db, conductor_id, owner_id)
 
-    async def delete(
-        self, db: AsyncSession, conductor_id: str, owner_id: str
-    ) -> bool:
+    async def delete(self, db: AsyncSession, conductor_id: str, owner_id: str) -> bool:
         result = await db.execute(
             delete(ConductorORM)
             .where(ConductorORM.id == conductor_id)

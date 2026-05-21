@@ -2,20 +2,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
 from fastapi import HTTPException
 
-from app.infrastructure.repositories.lines_repository import lines_repo, geometry_to_geojson
+from app.infrastructure.repositories.lines_repository import (
+    lines_repo,
+    geometry_to_geojson,
+)
 from app.infrastructure.orm_models import LineORM, UserORM
 from app.api.schemas.models import LineCreateDTO, LineResponseDTO
 
 
 def _to_dto(obj: LineORM) -> LineResponseDTO:
     return LineResponseDTO(
-        id               = obj.id,
-        name             = obj.name,
-        description      = obj.description,
-        length_km        = obj.length_km,
-        geometry_geojson = geometry_to_geojson(obj),
-        created_at       = obj.created_at.isoformat(),
-        updated_at       = obj.updated_at.isoformat(),
+        id=obj.id,
+        name=obj.name,
+        description=obj.description,
+        length_km=obj.length_km,
+        geometry_geojson=geometry_to_geojson(obj),
+        created_at=obj.created_at.isoformat(),
+        updated_at=obj.updated_at.isoformat(),
     )
 
 
@@ -30,7 +33,9 @@ async def get_by_id(db: AsyncSession, line_id: str, user: UserORM) -> LineRespon
         raise HTTPException(404, detail=f"Line {line_id} not found.")
 
 
-async def create(db: AsyncSession, data: LineCreateDTO, user: UserORM) -> LineResponseDTO:
+async def create(
+    db: AsyncSession, data: LineCreateDTO, user: UserORM
+) -> LineResponseDTO:
     return _to_dto(await lines_repo.create(db, user.id, data))
 
 

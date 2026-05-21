@@ -29,9 +29,9 @@ def _verify_password(plain: str, hashed: str) -> bool:
 def _create_token(user_id: str, username: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expires_min)
     payload = {
-        "sub":      user_id,
+        "sub": user_id,
         "username": username,
-        "exp":      expire,
+        "exp": expire,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
@@ -40,13 +40,13 @@ async def register(db: AsyncSession, data: RegisterRequestDTO) -> TokenResponseD
     if await users_repo.exists_by_username(db, data.username):
         raise HTTPException(status_code=409, detail="Nombre de usuario ya en uso.")
 
-    user  = await users_repo.create(db, data.username, _hash_password(data.password))
+    user = await users_repo.create(db, data.username, _hash_password(data.password))
     token = _create_token(user.id, user.username)
 
     return TokenResponseDTO(
-        access_token = token,
-        user_id      = user.id,
-        username     = user.username,
+        access_token=token,
+        user_id=user.id,
+        username=user.username,
     )
 
 
@@ -61,9 +61,9 @@ async def login(db: AsyncSession, data: LoginRequestDTO) -> TokenResponseDTO:
 
     token = _create_token(user.id, user.username)
     return TokenResponseDTO(
-        access_token = token,
-        user_id      = user.id,
-        username     = user.username,
+        access_token=token,
+        user_id=user.id,
+        username=user.username,
     )
 
 
@@ -73,11 +73,12 @@ async def get_current_user(
 ) -> UserORM:
     """
     Dependencia FastAPI que extrae y valida el usuario del JWT.
-    Se inyecta en todos los endpoints protegidos:
-        current_user: UserORM = Depends(get_current_user)
+    Se inyecta en todos los endpoints protegidos.
     """
     try:
-        payload  = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token.")

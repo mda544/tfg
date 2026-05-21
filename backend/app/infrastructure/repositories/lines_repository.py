@@ -10,10 +10,7 @@ from app.core.utils.geo import haversine_m
 
 
 def _coords_to_wkt(coordinates: list[dict]) -> str:
-    pts = " ".join(
-        f"{c.get('lon') or c.get('lng', 0)} {c['lat']}"
-        for c in coordinates
-    )
+    pts = " ".join(f"{c.get('lon') or c.get('lng', 0)} {c['lat']}" for c in coordinates)
     return f"LINESTRING({pts})"
 
 
@@ -33,15 +30,11 @@ class LinesRepository:
 
     async def get_all(self, db: AsyncSession, owner_id: str) -> list[LineORM]:
         result = await db.execute(
-            select(LineORM)
-            .where(LineORM.owner_id == owner_id)
-            .order_by(LineORM.name)
+            select(LineORM).where(LineORM.owner_id == owner_id).order_by(LineORM.name)
         )
         return list(result.scalars().all())
 
-    async def get_by_id(
-        self, db: AsyncSession, line_id: str, owner_id: str
-    ) -> LineORM:
+    async def get_by_id(self, db: AsyncSession, line_id: str, owner_id: str) -> LineORM:
         result = await db.execute(
             select(LineORM)
             .where(LineORM.id == line_id)
@@ -52,9 +45,7 @@ class LinesRepository:
             raise NoResultFound(f"Line {line_id} not found.")
         return obj
 
-    async def exists(
-        self, db: AsyncSession, line_id: str, owner_id: str
-    ) -> bool:
+    async def exists(self, db: AsyncSession, line_id: str, owner_id: str) -> bool:
         result = await db.execute(
             select(LineORM.id)
             .where(LineORM.id == line_id)
@@ -66,11 +57,11 @@ class LinesRepository:
         self, db: AsyncSession, owner_id: str, data: LineCreateDTO
     ) -> LineORM:
         obj = LineORM(
-            owner_id    = owner_id,
-            name        = data.name,
-            description = data.description,
-            geometry    = _coords_to_wkt(data.coordinates),
-            length_km   = _calc_length_km(data.coordinates),
+            owner_id=owner_id,
+            name=data.name,
+            description=data.description,
+            geometry=_coords_to_wkt(data.coordinates),
+            length_km=_calc_length_km(data.coordinates),
         )
         db.add(obj)
         await db.flush()
@@ -85,17 +76,15 @@ class LinesRepository:
             .where(LineORM.id == line_id)
             .where(LineORM.owner_id == owner_id)
             .values(
-                name        = data.name,
-                description = data.description,
-                geometry    = _coords_to_wkt(data.coordinates),
-                length_km   = _calc_length_km(data.coordinates),
+                name=data.name,
+                description=data.description,
+                geometry=_coords_to_wkt(data.coordinates),
+                length_km=_calc_length_km(data.coordinates),
             )
         )
         return await self.get_by_id(db, line_id, owner_id)
 
-    async def delete(
-        self, db: AsyncSession, line_id: str, owner_id: str
-    ) -> bool:
+    async def delete(self, db: AsyncSession, line_id: str, owner_id: str) -> bool:
         result = await db.execute(
             delete(LineORM)
             .where(LineORM.id == line_id)

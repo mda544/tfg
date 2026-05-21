@@ -24,11 +24,15 @@ class ElevationRepository:
     async def save_elevation(
         self, db: AsyncSession, lat: float, lon: float, elevation_m: float
     ) -> None:
-        stmt = insert(ElevationCacheORM).values(
-            lat         = self._round_coords(lat),
-            lon         = self._round_coords(lon),
-            elevation_m = elevation_m,
-        ).on_conflict_do_nothing(constraint="uq_elevation_cache")
+        stmt = (
+            insert(ElevationCacheORM)
+            .values(
+                lat=self._round_coords(lat),
+                lon=self._round_coords(lon),
+                elevation_m=elevation_m,
+            )
+            .on_conflict_do_nothing(constraint="uq_elevation_cache")
+        )
         await db.execute(stmt)
 
 

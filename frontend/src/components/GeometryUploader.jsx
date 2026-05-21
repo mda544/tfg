@@ -3,42 +3,44 @@ import { parseGeoJSON, parseSHP } from "../utils/geometryLoader";
 import { parseLineExcel } from "../utils/excelParser";
 import styles from "./GeometryUploader.module.css";
 
-export default function GeometryUploader({ onGeometriaCargada }) {
+export default function GeometryUploader({ onRouteLoaded }) {
   const inputRef = useRef(null);
-  const [estado, setEstado] = useState("idle"); // idle | loading | error
-  const [mensaje, setMensaje] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | loading | error
+  const [message, setMessage] = useState("");
 
-  const procesarArchivos = async (files) => {
-    const lista = Array.from(files);
-    setEstado("loading");
-    setMensaje("");
+  const processFiles = async (files) => {
+    const fileList = Array.from(files);
+    setStatus("loading");
+    setMessage("");
 
     try {
       let features = [];
-      let advertencias = [];
+      let warnings = [];
 
-      const geojsonFile = lista.find((f) => /\.(geojson|json)$/i.test(f.name));
-      const shpFile = lista.find((f) => /\.shp$/i.test(f.name));
-      const dbfFile = lista.find((f) => /\.dbf$/i.test(f.name));
-      const excelFile = lista.find((f) => /\.(xlsx|xls)$/i.test(f.name));
+      const geojsonFile = fileList.find((f) =>
+        /\.(geojson|json)$/i.test(f.name),
+      );
+      const shpFile = fileList.find((f) => /\.shp$/i.test(f.name));
+      const dbfFile = fileList.find((f) => /\.dbf$/i.test(f.name));
+      const excelFile = fileList.find((f) => /\.(xlsx|xls)$/i.test(f.name));
 
       if (geojsonFile) {
         features = await parseGeoJSON(geojsonFile);
       } else if (shpFile) {
         features = await parseSHP(shpFile, dbfFile);
       } else if (excelFile) {
-        const resultado = await parseLineExcel(excelFile);
-        features = [resultado];
-        advertencias = resultado.advertencias ?? [];
-        const { sistema_original, zona_utm, n_apoyos } = resultado.propiedades;
-        const infoSistema =
+        const parsed = await parseLineExcel(excelFile);
+        features = [parsed];
+        warnings = parsed.advertencias ?? [];
+        const { sistema_original, zona_utm, n_apoyos } = parsed.propiedades;
+        const systemInfo =
           sistema_original === "utm"
             ? ` — UTM zona ${zona_utm}N → WGS84`
             : " — WGS84";
-        setMensaje(
-          `${n_apoyos} apoyos cargados${infoSistema}` +
-            (advertencias.length > 0
-              ? ` (${advertencias.length} filas ignoradas)`
+        setMessage(
+          `${n_apoyos} apoyos cargados${systemInfo}` +
+            (warnings.length > 0
+              ? ` (${warnings.length} filas ignoradas)`
               : ""),
         );
       } else {
@@ -50,18 +52,16 @@ export default function GeometryUploader({ onGeometriaCargada }) {
       if (features.length === 0)
         throw new Error("El archivo no contiene geometrías válidas.");
 
-      setEstado("idle");
-      setMensaje(
+      setStatus("idle");
+      setMessage(
         `${features[0].propiedades?.n_apoyos ?? features.length} apoyos cargados` +
-          (advertencias.length > 0
-            ? ` (${advertencias.length} filas ignoradas)`
-            : ""),
+          (warnings.length > 0 ? ` (${warnings.length} filas ignoradas)` : ""),
       );
 
-      onGeometriaCargada(features.length === 1 ? features[0] : features);
+      onRouteLoaded(features.length === 1 ? features[0] : features);
     } catch (err) {
-      setEstado("error");
-      setMensaje(err.message);
+      setStatus("error");
+      setMessage(err.message);
     }
 
     if (inputRef.current) inputRef.current.value = "";
@@ -69,10 +69,10 @@ export default function GeometryUploader({ onGeometriaCargada }) {
 
   return (
     <div
-      className={`${styles.uploader} ${styles[estado]}`}
+      className={`${styles.uploader} ${styles[status]}`}
       onDrop={(e) => {
         e.preventDefault();
-        procesarArchivos(e.dataTransfer.files);
+        processFiles(e.dataTransfer.files);
       }}
       onDragOver={(e) => e.preventDefault()}
       onClick={() => inputRef.current?.click()}
@@ -86,17 +86,17 @@ export default function GeometryUploader({ onGeometriaCargada }) {
         accept=".geojson,.json,.shp,.dbf,.xlsx,.xls"
         multiple
         style={{ display: "none" }}
-        onChange={(e) => procesarArchivos(e.target.files)}
+        onChange={(e) => processFiles(e.target.files)}
       />
       <span className={styles.icon}>
-        {estado === "loading" ? "⋯" : estado === "error" ? "✕" : "↑"}
+        {status === "loading" ? "⋯" : status === "error" ? "✕" : "↑"}
       </span>
       <p className={styles.label}>Arrastra un .geojson, .shp o .xlsx aquí</p>
-      {mensaje && (
+      {message && (
         <p
-          className={`${styles.mensaje} ${estado === "error" ? styles.mensajeError : styles.mensajeOk}`}
+          className={`${styles.mensaje} ${status === "error" ? styles.mensajeError : styles.mensajeOk}`}
         >
-          {mensaje}
+          {message}
         </p>
       )}
       <p className={styles.hint}>

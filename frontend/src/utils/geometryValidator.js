@@ -1,5 +1,4 @@
-// Cobertura geográfica de cada fuente de datos que usa la app.
-const COBERTURAS_FUENTES = {
+const SOURCE_COVERAGE = {
   "Open-Meteo": { minLat: -90, maxLat: 90, minLon: -180, maxLon: 180 },
   "NASA POWER": { minLat: -90, maxLat: 90, minLon: -180, maxLon: 180 },
   "Copernicus DEM GLO-30": {
@@ -10,31 +9,28 @@ const COBERTURAS_FUENTES = {
   },
 };
 
-const LIMITES = {
-  MIN_PUNTOS: 2,
-  MAX_LONGITUD_KM: 500,
-  MIN_LONGITUD_M: 100,
-  MAX_BBOX_GRADOS: 10,
-  MAX_SEPARACION_KM: 50,
+const LIMITS = {
+  MIN_POINTS: 2,
+  MAX_LENGTH_KM: 500,
+  MIN_LENGTH_M: 100,
+  MAX_BBOX_DEG: 10,
+  MAX_SPAN_KM: 50,
 };
 
-/**
- * Valida un array de coordenadas {lat, lon}.
- * Devuelve { valido, errores, advertencias, info }.
- */
-export function validarTrazado(coordenadas) {
-  const errores = [];
-  const advertencias = [];
+/** Valida un array de coordenadas {lat, lon}. */
+export function validateRoute(coordinates) {
+  const errors = [];
+  const warnings = [];
   const info = {};
 
-  if (!coordenadas || coordenadas.length < LIMITES.MIN_PUNTOS) {
-    errores.push(
-      `El trazado necesita al menos ${LIMITES.MIN_PUNTOS} puntos (tiene ${coordenadas?.length ?? 0}).`,
+  if (!coordinates || coordinates.length < LIMITS.MIN_POINTS) {
+    errors.push(
+      `El trazado necesita al menos ${LIMITS.MIN_POINTS} puntos (tiene ${coordinates?.length ?? 0}).`,
     );
-    return { valido: false, errores, advertencias, info };
+    return { valid: false, errors, warnings, info };
   }
 
-  const invalidas = coordenadas
+  const invalidPoints = coordinates
     .map((c, i) => ({ i, c }))
     .filter(
       ({ c }) =>
@@ -44,29 +40,29 @@ export function validarTrazado(coordenadas) {
         isNaN(c.lon),
     );
 
-  if (invalidas.length > 0) {
-    errores.push(
-      `${invalidas.length} punto(s) con coordenadas inválidas: ` +
-        `índices [${invalidas
+  if (invalidPoints.length > 0) {
+    errors.push(
+      `${invalidPoints.length} punto(s) con coordenadas inválidas: ` +
+        `índices [${invalidPoints
           .slice(0, 3)
           .map((x) => x.i)
-          .join(", ")}${invalidas.length > 3 ? "…" : ""}].`,
+          .join(", ")}${invalidPoints.length > 3 ? "…" : ""}].`,
     );
   }
 
-  const fueraRango = coordenadas.filter(
+  const outOfRange = coordinates.filter(
     (c) => c.lat < -90 || c.lat > 90 || c.lon < -180 || c.lon > 180,
   );
-  if (fueraRango.length > 0) {
-    errores.push(
-      `${fueraRango.length} punto(s) fuera del rango WGS84. ¿Las coordenadas son UTM sin reproyectar?`,
+  if (outOfRange.length > 0) {
+    errors.push(
+      `${outOfRange.length} punto(s) fuera del rango WGS84. ¿Las coordenadas son UTM sin reproyectar?`,
     );
   }
 
-  if (errores.length > 0) return { valido: false, errores, advertencias, info };
+  if (errors.length > 0) return { valid: false, errors, warnings, info };
 
-  const lats = coordenadas.map((c) => c.lat);
-  const lons = coordenadas.map((c) => c.lon);
+  const lats = coordinates.map((c) => c.lat);
+  const lons = coordinates.map((c) => c.lon);
   const bbox = {
     minLat: Math.min(...lats),
     maxLat: Math.max(...lats),
@@ -77,77 +73,77 @@ export function validarTrazado(coordenadas) {
 
   const spanLat = bbox.maxLat - bbox.minLat;
   const spanLon = bbox.maxLon - bbox.minLon;
-  if (spanLat > LIMITES.MAX_BBOX_GRADOS || spanLon > LIMITES.MAX_BBOX_GRADOS) {
-    advertencias.push(
+  if (spanLat > LIMITS.MAX_BBOX_DEG || spanLon > LIMITS.MAX_BBOX_DEG) {
+    warnings.push(
       `El trazado abarca ${spanLat.toFixed(1)}° lat × ${spanLon.toFixed(1)}° lon. ` +
         `¿Es correcto? Bounding box muy grande puede indicar coordenadas erróneas.`,
     );
   }
 
-  let longitudTotalM = 0;
-  for (let i = 0; i < coordenadas.length - 1; i++) {
-    longitudTotalM += haversineM(coordenadas[i], coordenadas[i + 1]);
+  let totalLengthM = 0;
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    totalLengthM += haversineM(coordinates[i], coordinates[i + 1]);
   }
-  const longitudKm = longitudTotalM / 1000;
-  info.longitud_km = Math.round(longitudKm * 10) / 10;
+  const lengthKm = totalLengthM / 1000;
+  info.longitud_km = Math.round(lengthKm * 10) / 10;
 
-  if (longitudTotalM < LIMITES.MIN_LONGITUD_M) {
-    errores.push(
-      `Longitud del trazado demasiado corta (${longitudTotalM.toFixed(0)} m). Dibuja al menos ${LIMITES.MIN_LONGITUD_M} m.`,
+  if (totalLengthM < LIMITS.MIN_LENGTH_M) {
+    errors.push(
+      `Longitud del trazado demasiado corta (${totalLengthM.toFixed(0)} m). Dibuja al menos ${LIMITS.MIN_LENGTH_M} m.`,
     );
   }
-  if (longitudKm > LIMITES.MAX_LONGITUD_KM) {
-    advertencias.push(
-      `Longitud muy elevada: ${longitudKm.toFixed(0)} km. Los cálculos pueden ser lentos.`,
-    );
-  }
-
-  const tramosLargos = [];
-  for (let i = 0; i < coordenadas.length - 1; i++) {
-    const d = haversineM(coordenadas[i], coordenadas[i + 1]) / 1000;
-    if (d > LIMITES.MAX_SEPARACION_KM)
-      tramosLargos.push({ desde: i, hasta: i + 1, km: d.toFixed(1) });
-  }
-  if (tramosLargos.length > 0) {
-    advertencias.push(
-      `${tramosLargos.length} tramo(s) con separación > ${LIMITES.MAX_SEPARACION_KM} km entre apoyos consecutivos.`,
+  if (lengthKm > LIMITS.MAX_LENGTH_KM) {
+    warnings.push(
+      `Longitud muy elevada: ${lengthKm.toFixed(0)} km. Los cálculos pueden ser lentos.`,
     );
   }
 
-  const duplicados = coordenadas.filter(
+  const longSpans = [];
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const d = haversineM(coordinates[i], coordinates[i + 1]) / 1000;
+    if (d > LIMITS.MAX_SPAN_KM)
+      longSpans.push({ desde: i, hasta: i + 1, km: d.toFixed(1) });
+  }
+  if (longSpans.length > 0) {
+    warnings.push(
+      `${longSpans.length} tramo(s) con separación > ${LIMITS.MAX_SPAN_KM} km entre apoyos consecutivos.`,
+    );
+  }
+
+  const duplicates = coordinates.filter(
     (c, i) =>
       i > 0 &&
-      Math.abs(c.lat - coordenadas[i - 1].lat) < 1e-8 &&
-      Math.abs(c.lon - coordenadas[i - 1].lon) < 1e-8,
+      Math.abs(c.lat - coordinates[i - 1].lat) < 1e-8 &&
+      Math.abs(c.lon - coordinates[i - 1].lon) < 1e-8,
   ).length;
-  if (duplicados > 0) {
-    advertencias.push(
-      `${duplicados} punto(s) duplicado(s) consecutivos eliminados en el cálculo.`,
+  if (duplicates > 0) {
+    warnings.push(
+      `${duplicates} punto(s) duplicado(s) consecutivos eliminados en el cálculo.`,
     );
   }
 
-  for (const [fuente, cobertura] of Object.entries(COBERTURAS_FUENTES)) {
-    const fueraDeFuente = coordenadas.filter(
+  for (const [source, coverage] of Object.entries(SOURCE_COVERAGE)) {
+    const outOfSource = coordinates.filter(
       (c) =>
-        c.lat < cobertura.minLat ||
-        c.lat > cobertura.maxLat ||
-        c.lon < cobertura.minLon ||
-        c.lon > cobertura.maxLon,
+        c.lat < coverage.minLat ||
+        c.lat > coverage.maxLat ||
+        c.lon < coverage.minLon ||
+        c.lon > coverage.maxLon,
     );
-    if (fueraDeFuente.length > 0) {
-      advertencias.push(
-        `${fueraDeFuente.length} punto(s) fuera de la cobertura de ${fuente}.`,
+    if (outOfSource.length > 0) {
+      warnings.push(
+        `${outOfSource.length} punto(s) fuera de la cobertura de ${source}.`,
       );
     }
   }
 
-  info.n_puntos = coordenadas.length;
-  info.n_duplicados = duplicados;
+  info.n_puntos = coordinates.length;
+  info.n_duplicados = duplicates;
 
-  return { valido: errores.length === 0, errores, advertencias, info };
+  return { valid: errors.length === 0, errors, warnings, info };
 }
 
-/** Distancia Haversine en metros entre dos puntos {lat, lon} */
+/** Distancia Haversine en metros entre dos puntos {lat, lon}. */
 export function haversineM(a, b) {
   const R = 6_371_000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -160,22 +156,19 @@ export function haversineM(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-/**
- * Inserta puntos intermedios en vanos > maxVanoM.
- * Opera con {lat, lon}.
- */
-export function densificarTrazado(coordenadas, maxVanoM = 500) {
-  if (!coordenadas || coordenadas.length < 2) return coordenadas;
+/** Inserta puntos intermedios en vanos > maxSpanM. Opera con {lat, lon}. */
+export function densifyRoute(coordinates, maxSpanM = 500) {
+  if (!coordinates || coordinates.length < 2) return coordinates;
 
-  const result = [coordenadas[0]];
+  const result = [coordinates[0]];
 
-  for (let i = 0; i < coordenadas.length - 1; i++) {
-    const p1 = coordenadas[i];
-    const p2 = coordenadas[i + 1];
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const p1 = coordinates[i];
+    const p2 = coordinates[i + 1];
     const dist = haversineM(p1, p2);
 
-    if (dist > maxVanoM) {
-      const n = Math.ceil(dist / maxVanoM);
+    if (dist > maxSpanM) {
+      const n = Math.ceil(dist / maxSpanM);
       for (let j = 1; j < n; j++) {
         const t = j / n;
         result.push({
@@ -190,11 +183,8 @@ export function densificarTrazado(coordenadas, maxVanoM = 500) {
   return result;
 }
 
-/**
- * Normaliza coordenadas Leaflet (que usan `lng`) al formato interno {lat, lon}
- * que usa el backend.
- */
-export function normalizarALatLon(raw) {
+/** Normaliza coordenadas Leaflet (que usan `lng`) al formato interno {lat, lon}. */
+export function normalizeToLatLon(raw) {
   const flat = Array.isArray(raw[0]) ? raw[0] : raw;
   return flat.map((p) => ({
     lat: typeof p.lat === "number" ? p.lat : p[0],
@@ -207,9 +197,7 @@ export function normalizarALatLon(raw) {
   }));
 }
 
-/**
- * Convierte {lat, lon} → {lat, lng} para Leaflet.
- */
+/** Convierte {lat, lon} → {lat, lng} para Leaflet. */
 export function toLngLat(coords) {
   return coords.map((c) => ({ lat: c.lat, lng: c.lon }));
 }

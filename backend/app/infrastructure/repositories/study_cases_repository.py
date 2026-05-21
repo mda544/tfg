@@ -32,9 +32,7 @@ class StudyCasesRepository:
             raise NoResultFound(f"Study case {case_id} not found.")
         return obj
 
-    async def exists(
-        self, db: AsyncSession, case_id: str, owner_id: str
-    ) -> bool:
+    async def exists(self, db: AsyncSession, case_id: str, owner_id: str) -> bool:
         result = await db.execute(
             select(StudyCaseORM.id)
             .where(StudyCaseORM.id == case_id)
@@ -46,17 +44,16 @@ class StudyCasesRepository:
         self, db: AsyncSession, owner_id: str, data: StudyCaseCreateDTO
     ) -> StudyCaseORM:
         obj = StudyCaseORM(
-            owner_id       = owner_id,
-            name           = data.name,
-            description    = data.description,
-            line_id        = data.line_id,
-            conductor_id   = data.conductor_id,
-            segment_step_m = data.segment_step_m,
-            use_real_spans = data.use_real_spans,
-            use_dem        = data.use_dem,
-            scenarios      = [
-                MeteoScenarioORM(**s.model_dump())
-                for s in (data.scenarios or [])
+            owner_id=owner_id,
+            name=data.name,
+            description=data.description,
+            line_id=data.line_id,
+            conductor_id=data.conductor_id,
+            segment_step_m=data.segment_step_m,
+            use_real_spans=data.use_real_spans,
+            use_dem=data.use_dem,
+            scenarios=[
+                MeteoScenarioORM(**s.model_dump()) for s in (data.scenarios or [])
             ],
         )
         db.add(obj)
@@ -71,27 +68,26 @@ class StudyCasesRepository:
             .where(StudyCaseORM.id == case_id)
             .where(StudyCaseORM.owner_id == owner_id)
             .values(
-                name           = data.name,
-                description    = data.description,
-                line_id        = data.line_id,
-                conductor_id   = data.conductor_id,
-                segment_step_m = data.segment_step_m,
-                use_real_spans = data.use_real_spans,
-                use_dem        = data.use_dem,
+                name=data.name,
+                description=data.description,
+                line_id=data.line_id,
+                conductor_id=data.conductor_id,
+                segment_step_m=data.segment_step_m,
+                use_real_spans=data.use_real_spans,
+                use_dem=data.use_dem,
             )
         )
         if data.scenarios is not None:
             await db.execute(
-                delete(MeteoScenarioORM)
-                .where(MeteoScenarioORM.study_case_id == case_id)
+                delete(MeteoScenarioORM).where(
+                    MeteoScenarioORM.study_case_id == case_id
+                )
             )
             for s in data.scenarios:
                 db.add(MeteoScenarioORM(study_case_id=case_id, **s.model_dump()))
         return await self.get_by_id(db, case_id, owner_id)
 
-    async def delete(
-        self, db: AsyncSession, case_id: str, owner_id: str
-    ) -> bool:
+    async def delete(self, db: AsyncSession, case_id: str, owner_id: str) -> bool:
         result = await db.execute(
             delete(StudyCaseORM)
             .where(StudyCaseORM.id == case_id)

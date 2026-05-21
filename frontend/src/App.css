@@ -14,7 +14,7 @@ body {
   color: #111827;
 }
 
-/* ── Header ── */
+/* Header */
 .app-header {
   display: flex;
   align-items: center;
@@ -65,7 +65,7 @@ body {
   background: #f9fafb;
 }
 
-/* ── Layout principal ── */
+/* Layout principal */
 .app-container {
   display: flex;
   flex-direction: column;
@@ -83,7 +83,7 @@ body {
   margin: 0 auto;
 }
 
-/* ── Panel izquierdo ── */
+/* Panel izquierdo */
 .panel-configuracion {
   width: 320px;
   flex-shrink: 0;
@@ -113,7 +113,7 @@ body {
   border-bottom: 1px solid #f3f4f6;
 }
 
-/* ── Controles ── */
+/* Controles */
 .toggle-label {
   display: flex;
   align-items: center;
@@ -151,7 +151,7 @@ body {
   line-height: 1.5;
 }
 
-/* ── Estado mapa ── */
+/* Estado mapa */
 .estado-mapa {
   font-size: 0.82rem;
   font-weight: 500;
@@ -184,7 +184,7 @@ body {
   border: 1px solid #fecaca;
 }
 
-/* ── Botones ── */
+/* Botones */
 .btn-secondary {
   padding: 7px 12px;
   border: 1px solid #e5e7eb;
@@ -222,7 +222,7 @@ body {
   cursor: not-allowed;
 }
 
-/* ── Panel derecho (mapa) ── */
+/* Panel derecho (mapa) */
 .mapa-wrapper {
   flex: 1;
   display: flex;

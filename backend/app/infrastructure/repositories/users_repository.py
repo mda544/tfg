@@ -8,21 +8,19 @@ from app.infrastructure.orm_models import UserORM
 class UsersRepository:
 
     async def get_by_id(self, db: AsyncSession, user_id: str) -> UserORM:
-        result = await db.execute(
-            select(UserORM).where(UserORM.id == user_id)
-        )
+        result = await db.execute(select(UserORM).where(UserORM.id == user_id))
         obj = result.scalar_one_or_none()
         if obj is None:
             raise NoResultFound(f"User {user_id} not found.")
         return obj
 
     async def get_by_username(self, db: AsyncSession, username: str) -> UserORM | None:
-        result = await db.execute(
-            select(UserORM).where(UserORM.username == username)
-        )
+        result = await db.execute(select(UserORM).where(UserORM.username == username))
         return result.scalar_one_or_none()
 
-    async def create(self, db: AsyncSession, username: str, hashed_password: str) -> UserORM:
+    async def create(
+        self, db: AsyncSession, username: str, hashed_password: str
+    ) -> UserORM:
         obj = UserORM(username=username, password=hashed_password)
         db.add(obj)
         await db.flush()
