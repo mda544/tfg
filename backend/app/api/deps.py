@@ -30,7 +30,6 @@ async def get_current_user(
             detail="Token inválido o expirado.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     try:
         return await users_repo.get_by_id(db, user_id)
     except NoResultFound:

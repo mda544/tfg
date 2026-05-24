@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     cors_origins: List[str]
 
     # Rango histórico — parámetros de dominio
-    anio_inicio_default: int = 1990
-    anio_fin_default: int = 2023
+    year_start_default: int = 1990
+    year_end_default: int = 2023
 
     # Timeouts para APIs externas
     openmeteo_timeout: int = 120

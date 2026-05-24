@@ -11,8 +11,9 @@ from sqlalchemy import (
     Text,
     Enum as SAEnum,
     UniqueConstraint,
+    ARRAY,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from geoalchemy2 import Geometry
 
@@ -34,7 +35,7 @@ class UserORM(Base):
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    password: Mapped[str] = mapped_column(String(255), nullable=False)  # bcrypt hash
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     conductors: Mapped[list["ConductorORM"]] = relationship(back_populates="owner")
@@ -48,9 +49,11 @@ class ConductorORM(Base):
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
-    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    owner_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # None = conductor global
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     diameter_mm: Mapped[float] = mapped_column(Float, nullable=False)
     r_ac_75_ohm_km: Mapped[float] = mapped_column(Float, nullable=False)
     r_ac_25_ohm_km: Mapped[float] = mapped_column(Float, nullable=False)
@@ -62,8 +65,7 @@ class ConductorORM(Base):
         DateTime(timezone=True), default=_now, onupdate=_now
     )
 
-    owner: Mapped["UserORM"] = relationship(back_populates="conductors")
-    study_cases: Mapped[list["StudyCaseORM"]] = relationship(back_populates="conductor")
+    owner: Mapped["UserORM | None"] = relationship(back_populates="conductors")
 
 
 class LineORM(Base):
@@ -79,6 +81,14 @@ class LineORM(Base):
         Geometry(geometry_type="LINESTRING", srid=4326), nullable=False
     )
     length_km: Mapped[float] = mapped_column(Float, nullable=True)
+    n_points: Mapped[int] = mapped_column(Integer, nullable=True)
+    bbox_lat_min: Mapped[float] = mapped_column(Float, nullable=True)
+    bbox_lat_max: Mapped[float] = mapped_column(Float, nullable=True)
+    bbox_lon_min: Mapped[float] = mapped_column(Float, nullable=True)
+    bbox_lon_max: Mapped[float] = mapped_column(Float, nullable=True)
+    min_elevation_m: Mapped[float] = mapped_column(Float, nullable=True)
+    max_elevation_m: Mapped[float] = mapped_column(Float, nullable=True)
+    avg_elevation_m: Mapped[float] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now
@@ -89,18 +99,19 @@ class LineORM(Base):
 
 
 class StudyCaseORM(Base):
+    """Agrupa una línea con su historial de cálculos.
+    No tiene conductor ni weather_inputs propios —
+    cada RateResult tiene los suyos."""
+
     __tablename__ = "study_cases"
 
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    line_id: Mapped[str] = mapped_column(ForeignKey("lines.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    line_id: Mapped[str] = mapped_column(ForeignKey("lines.id"), nullable=False)
-    conductor_id: Mapped[str] = mapped_column(
-        ForeignKey("conductors.id"), nullable=False
-    )
     segment_step_m: Mapped[float] = mapped_column(Float, default=500.0)
     use_real_spans: Mapped[bool] = mapped_column(Boolean, default=False)
     use_dem: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -111,23 +122,61 @@ class StudyCaseORM(Base):
 
     owner: Mapped["UserORM"] = relationship(back_populates="study_cases")
     line: Mapped["LineORM"] = relationship(back_populates="study_cases")
-    conductor: Mapped["ConductorORM"] = relationship(back_populates="study_cases")
-    scenarios: Mapped[list["MeteoScenarioORM"]] = relationship(
-        back_populates="study_case", cascade="all, delete-orphan"
-    )
-    results: Mapped[list["RateResultORM"]] = relationship(
+    rate_results: Mapped[list["RateResultORM"]] = relationship(
         back_populates="study_case", cascade="all, delete-orphan"
     )
 
 
-class MeteoScenarioORM(Base):
-    __tablename__ = "meteo_scenarios"
+class RateResultORM(Base):
+    __tablename__ = "rate_results"
 
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
     study_case_id: Mapped[str] = mapped_column(
         ForeignKey("study_cases.id"), nullable=False
+    )
+    conductor_id: Mapped[str] = mapped_column(
+        ForeignKey("conductors.id"), nullable=False
+    )
+    climate_source: Mapped[str] = mapped_column(String(50), nullable=False)
+    elevation_source: Mapped[str] = mapped_column(String(50), nullable=False)
+    n_segments: Mapped[int] = mapped_column(Integer, nullable=False)
+    rate_summer: Mapped[float] = mapped_column(Float, nullable=False)
+    rate_autumn: Mapped[float] = mapped_column(Float, nullable=False)
+    rate_winter: Mapped[float] = mapped_column(Float, nullable=False)
+    rate_spring: Mapped[float] = mapped_column(Float, nullable=False)
+    design_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    warnings: Mapped[list] = mapped_column(ARRAY(String), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    study_case: Mapped["StudyCaseORM"] = relationship(back_populates="rate_results")
+    conductor: Mapped["ConductorORM"] = relationship()
+    weather_inputs: Mapped[list["RateWeatherInputORM"]] = relationship(
+        back_populates="rate_result", cascade="all, delete-orphan"
+    )
+    segments: Mapped[list["SegmentORM"]] = relationship(
+        back_populates="rate_result", cascade="all, delete-orphan"
+    )
+
+
+class RateWeatherInputORM(Base):
+    """Condiciones meteorológicas usadas en un cálculo concreto.
+    4 filas por RateResult — una por Season.
+    Son la entrada común del cálculo IEEE 738 para todos los segmentos."""
+
+    __tablename__ = "rate_weather_inputs"
+    __table_args__ = (
+        UniqueConstraint(
+            "rate_result_id", "season", name="uq_rate_weather_input_season"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=_uuid
+    )
+    rate_result_id: Mapped[str] = mapped_column(
+        ForeignKey("rate_results.id"), nullable=False
     )
     season: Mapped[str] = mapped_column(
         SAEnum("verano", "otono", "invierno", "primavera", name="season_enum"),
@@ -138,32 +187,13 @@ class MeteoScenarioORM(Base):
     wind_angle_deg: Mapped[float] = mapped_column(Float, default=90.0)
     solar_radiation_wm2: Mapped[float] = mapped_column(Float, nullable=False)
 
-    study_case: Mapped["StudyCaseORM"] = relationship(back_populates="scenarios")
-
-
-class RateResultORM(Base):
-    __tablename__ = "rate_results"
-
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
-    study_case_id: Mapped[str] = mapped_column(
-        ForeignKey("study_cases.id"), nullable=True
-    )
-    n_segments: Mapped[int] = mapped_column(Integer, nullable=False)
-    design_rate_a: Mapped[float] = mapped_column(Float, nullable=False)
-    rates_by_season: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    route_info: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    warnings: Mapped[list] = mapped_column(JSONB, nullable=True)
-    conductor_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    segments_data: Mapped[list] = mapped_column(JSONB, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-    study_case: Mapped["StudyCaseORM"] = relationship(back_populates="results")
-    segments: Mapped[list["SegmentORM"]] = relationship(
-        back_populates="rate_result", cascade="all, delete-orphan"
-    )
+    rate_result: Mapped["RateResultORM"] = relationship(back_populates="weather_inputs")
 
 
 class SegmentORM(Base):
+    """Tabla espacial para consultas PostGIS y análisis de resultados por tramo.
+    Todas las columnas son consultables directamente — sin JSONB."""
+
     __tablename__ = "segments"
 
     id: Mapped[str] = mapped_column(
@@ -174,21 +204,46 @@ class SegmentORM(Base):
     )
     segment_id: Mapped[str] = mapped_column(String(10), nullable=False)
     index: Mapped[int] = mapped_column(Integer, nullable=False)
-    mid_point: Mapped[object] = mapped_column(
-        Geometry(geometry_type="POINT", srid=4326), nullable=False
-    )
     geometry: Mapped[object] = mapped_column(
         Geometry(geometry_type="LINESTRING", srid=4326), nullable=False
+    )
+    mid_point: Mapped[object] = mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
     )
     length_km: Mapped[float] = mapped_column(Float, nullable=False)
     elevation_m: Mapped[float] = mapped_column(Float, default=0.0)
     azimuth_deg: Mapped[float] = mapped_column(Float, default=90.0)
-    rate_summer_a: Mapped[float] = mapped_column(Float, nullable=False)
-    rate_autumn_a: Mapped[float] = mapped_column(Float, nullable=False)
-    rate_winter_a: Mapped[float] = mapped_column(Float, nullable=False)
-    rate_spring_a: Mapped[float] = mapped_column(Float, nullable=False)
-    design_rate_a: Mapped[float] = mapped_column(Float, nullable=False)
-    details: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    # Ampacidad por estación
+    rate_summer: Mapped[float] = mapped_column(Float, nullable=False)
+    rate_autumn: Mapped[float] = mapped_column(Float, nullable=False)
+    rate_winter: Mapped[float] = mapped_column(Float, nullable=False)
+    rate_spring: Mapped[float] = mapped_column(Float, nullable=False)
+    design_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    # Calor convectivo (W/m)
+    qc_summer: Mapped[float] = mapped_column(Float, nullable=False)
+    qc_autumn: Mapped[float] = mapped_column(Float, nullable=False)
+    qc_winter: Mapped[float] = mapped_column(Float, nullable=False)
+    qc_spring: Mapped[float] = mapped_column(Float, nullable=False)
+    # Calor radiativo (W/m)
+    qr_summer: Mapped[float] = mapped_column(Float, nullable=False)
+    qr_autumn: Mapped[float] = mapped_column(Float, nullable=False)
+    qr_winter: Mapped[float] = mapped_column(Float, nullable=False)
+    qr_spring: Mapped[float] = mapped_column(Float, nullable=False)
+    # Calor solar (W/m)
+    qs_summer: Mapped[float] = mapped_column(Float, nullable=False)
+    qs_autumn: Mapped[float] = mapped_column(Float, nullable=False)
+    qs_winter: Mapped[float] = mapped_column(Float, nullable=False)
+    qs_spring: Mapped[float] = mapped_column(Float, nullable=False)
+    # Resistencia térmica (Ω/m)
+    r_tc_summer: Mapped[float] = mapped_column(Float, nullable=False)
+    r_tc_autumn: Mapped[float] = mapped_column(Float, nullable=False)
+    r_tc_winter: Mapped[float] = mapped_column(Float, nullable=False)
+    r_tc_spring: Mapped[float] = mapped_column(Float, nullable=False)
+    # Modo de convección
+    conv_mode_summer: Mapped[str] = mapped_column(String(20), nullable=False)
+    conv_mode_autumn: Mapped[str] = mapped_column(String(20), nullable=False)
+    conv_mode_winter: Mapped[str] = mapped_column(String(20), nullable=False)
+    conv_mode_spring: Mapped[str] = mapped_column(String(20), nullable=False)
 
     rate_result: Mapped["RateResultORM"] = relationship(back_populates="segments")
 

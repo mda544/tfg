@@ -18,30 +18,42 @@ export default function RatesResultsPanel({ result }) {
     );
   }
 
-  // Campos actualizados al nuevo backend
   const {
-    design_rate_a,
-    rates_by_season = {},
+    design_rate,
+    rate_summer,
+    rate_autumn,
+    rate_winter,
+    rate_spring,
     segments = [],
     n_segments,
     conductor,
-    route_info = {},
+    climate_source,
+    elevation_source = "none",
     warnings = [],
   } = result;
 
-  const estaciones = Object.keys(rates_by_season);
-  const tramoCritico = segments.reduce(
-    (min, t) => (t.design_rate_a < min.design_rate_a ? t : min),
-    segments[0] ?? { design_rate_a: Infinity, segment_id: "—" },
+  const rates_by_season = {
+    verano: rate_summer,
+    otono: rate_autumn,
+    invierno: rate_winter,
+    primavera: rate_spring,
+  };
+
+  const seasons = Object.keys(rates_by_season).filter(
+    (k) => rates_by_season[k] != null,
   );
 
-  const ampacidades = segments.map((t) => t.design_rate_a);
-  const hayVariacion =
+  const criticalSegment = segments.reduce(
+    (min, t) => (t.design_rate < min.design_rate ? t : min),
+    segments[0] ?? { design_rate: Infinity, segment_id: "—" },
+  );
+
+  const ampacidades = segments.map((t) => t.design_rate);
+  const hasVariation =
     ampacidades.length > 1 &&
     Math.max(...ampacidades) - Math.min(...ampacidades) > 0.5;
 
-  const fuenteAlt = route_info.elevation_source ?? "sin_altitud";
-  const modoSeg = route_info.segment_mode ?? "";
+  const fuenteAlt = elevation_source ?? "none";
 
   return (
     <div className="prr-panel">
@@ -50,17 +62,15 @@ export default function RatesResultsPanel({ result }) {
         <div>
           <p className="prr-label">Rate de diseño de la línea</p>
           <p className="prr-rate-principal">
-            {design_rate_a} <span>A</span>
+            {design_rate} <span>A</span>
           </p>
           <p className="prr-sublabel">
-            Tramo crítico: {tramoCritico.segment_id}
-            {tramoCritico.elevation_m > 0
-              ? ` · ${tramoCritico.elevation_m} m s.n.m.`
+            Tramo crítico: {criticalSegment.segment_id}
+            {criticalSegment.elevation_m > 0
+              ? ` · ${criticalSegment.elevation_m} m s.n.m.`
               : ""}
             {" · "}
-            {route_info.length_km ?? "?"} km
-            {" · "}
-            {n_segments} {modoSeg.includes("vanos") ? "vanos" : "tramos"}
+            {n_segments} tramos
           </p>
         </div>
         <div className="prr-badge-metodo">IEEE 738-2012</div>
@@ -73,35 +83,36 @@ export default function RatesResultsPanel({ result }) {
           tramos.
         </span>
         <span
-          className={`prr-dem-badge prr-dem-${fuenteAlt.includes("error") ? "error" : fuenteAlt === "sin_altitud" ? "off" : "ok"}`}
+          className={`prr-dem-badge prr-dem-${
+            fuenteAlt.includes("error")
+              ? "error"
+              : fuenteAlt === "none"
+                ? "off"
+                : "ok"
+          }`}
         >
           Altitud: {ELEVATION_SOURCE_LABEL[fuenteAlt] ?? fuenteAlt}
-          {route_info.min_elevation_m !== undefined &&
-            fuenteAlt !== "sin_altitud" &&
-            ` · ${route_info.min_elevation_m}–${route_info.max_elevation_m} m`}
         </span>
       </div>
 
-      {!hayVariacion && segments.length > 1 && fuenteAlt !== "sin_altitud" && (
+      {!hasVariation && segments.length > 1 && fuenteAlt !== "none" && (
         <div className="prr-aviso-plano">
-          Todos los tramos tienen el mismo rate. Comprueba que el DEM devolvió
-          altitudes variadas (altitud media: {route_info.avg_elevation_m ?? 0}{" "}
-          m).
+          Todos los tramos tienen el mismo rate.
         </div>
       )}
 
       {/* Rates por estación */}
       <div className="prr-estaciones">
-        {estaciones.map((est) => {
-          const amp = rates_by_season[est];
+        {seasons.map((season) => {
+          const amp = rates_by_season[season];
           const c = ampacityColor(amp);
           return (
             <div
-              key={est}
+              key={season}
               className="prr-est-card"
-              style={{ borderTop: `3px solid ${SEASON_COLOR[est]}` }}
+              style={{ borderTop: `3px solid ${SEASON_COLOR[season]}` }}
             >
-              <p className="prr-est-nombre">{SEASON_LABEL[est] ?? est}</p>
+              <p className="prr-est-nombre">{SEASON_LABEL[season] ?? season}</p>
               <p
                 className="prr-est-amp"
                 style={{ color: c.text, background: c.bg }}
@@ -123,9 +134,9 @@ export default function RatesResultsPanel({ result }) {
                 <th>Tramo</th>
                 <th>Long.</th>
                 <th>Alt.</th>
-                {estaciones.map((e) => (
-                  <th key={e} style={{ color: SEASON_COLOR[e] }}>
-                    {SEASON_LABEL[e]?.slice(0, 3)}.
+                {seasons.map((s) => (
+                  <th key={s} style={{ color: SEASON_COLOR[s] }}>
+                    {SEASON_LABEL[s]?.slice(0, 3)}.
                   </th>
                 ))}
                 <th>Diseño</th>
@@ -134,29 +145,35 @@ export default function RatesResultsPanel({ result }) {
             </thead>
             <tbody>
               {segments.map((seg) => {
-                const esCritico = seg.segment_id === tramoCritico.segment_id;
-                const c = ampacityColor(seg.design_rate_a);
-                const modo = seg.details?.[estaciones[0]]?.conv_mode ?? "—";
-                const altitud = seg.elevation_m ?? 0;
+                const isCritical =
+                  seg.segment_id === criticalSegment.segment_id;
+                const c = ampacityColor(seg.design_rate);
+                const firstSeason = seasons[0];
+                const modo =
+                  seg.ratings?.[firstSeason]?.conv_mode ??
+                  seg.details?.[firstSeason]?.conv_mode ??
+                  "—";
                 return (
                   <tr
                     key={seg.segment_id}
-                    className={esCritico ? "prr-fila-critica" : ""}
+                    className={isCritical ? "prr-fila-critica" : ""}
                   >
                     <td className="prr-td-id">{seg.segment_id}</td>
                     <td>{seg.length_km} km</td>
                     <td className="prr-td-alt">
-                      {altitud > 0 ? `${Math.round(altitud)} m` : "—"}
+                      {(seg.elevation_m ?? 0) > 0
+                        ? `${Math.round(seg.elevation_m)} m`
+                        : "—"}
                     </td>
-                    {estaciones.map((e) => (
-                      <td key={e}>{seg.rates?.[e] ?? "—"} A</td>
+                    {seasons.map((s) => (
+                      <td key={s}>{seg.rates?.[s] ?? "—"} A</td>
                     ))}
                     <td>
                       <span
                         className="prr-pill"
                         style={{ background: c.bg, color: c.text }}
                       >
-                        {seg.design_rate_a} A
+                        {seg.design_rate} A
                       </span>
                     </td>
                     <td className="prr-td-modo">{modo}</td>
@@ -168,7 +185,7 @@ export default function RatesResultsPanel({ result }) {
         </div>
       )}
 
-      {/* Advertencias del backend */}
+      {/* Advertencias */}
       {warnings.length > 0 && (
         <div className="prr-advertencias">
           <p className="prr-adv-titulo">{warnings.length} advertencia(s)</p>
@@ -189,8 +206,9 @@ export default function RatesResultsPanel({ result }) {
           {conductor?.absorptivity}
         </p>
         <p>
-          Modelo: IEEE Std 738-2012 · Régimen estacionario · Segmentación:{" "}
-          {modoSeg} · Altitud: {ELEVATION_SOURCE_LABEL[fuenteAlt] ?? fuenteAlt}
+          Modelo: IEEE Std 738-2012 · Régimen estacionario · Fuente climática:{" "}
+          {climate_source} · Altitud:{" "}
+          {ELEVATION_SOURCE_LABEL[fuenteAlt] ?? fuenteAlt}
         </p>
       </div>
     </div>

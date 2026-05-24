@@ -79,7 +79,7 @@ class ClimateProcessor:
             t_season = temps[mask][~np.isnan(temps[mask])]
             w_season = winds[mask][~np.isnan(winds[mask])]
             r_season = radiation[mask]
-            r_daytime = r_season[r_season > 5]  # filtra horas nocturnas
+            r_daytime = r_season[r_season > 5]
 
             results[season] = SeasonalPercentiles(
                 season=season,

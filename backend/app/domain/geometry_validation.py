@@ -1,4 +1,4 @@
-from app.domain.entities import ValidationResult
+from app.domain.value_objects import ValidationResult
 from app.core.utils.geo import haversine_m
 
 COVERAGE = {
@@ -127,7 +127,6 @@ def _segments_intersect(p1, p2, p3, p4) -> bool:
     return (ccw(A, C, D) != ccw(B, C, D)) and (ccw(A, B, C) != ccw(A, B, D))
 
 
-# Devuelve los pares de segmentos que se cruzan. Limitado a trazados cortos.
 def _detect_self_intersections(coordinates: list[dict]) -> list[dict]:
     intersections = []
     n = len(coordinates)

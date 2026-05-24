@@ -5,18 +5,28 @@ from app.domain.types import Season
 
 @dataclass(frozen=True)
 class GeoPoint:
-    """Value Object que representa un punto geográfico en WGS84.
-    Clave canónica: lat, lon."""
+    """Punto geográfico WGS84."""
 
     lat: float
     lon: float
 
 
 @dataclass(frozen=True)
+class WeatherInput:
+    """Condiciones meteorológicas para un escenario estacional.
+    Son la entrada del cálculo IEEE 738 — persisten en rate_weather_inputs."""
+
+    season: Season
+    temp_amb_c: float
+    wind_speed_ms: float
+    wind_angle_deg: float
+    solar_radiation_wm2: float
+
+
+@dataclass(frozen=True)
 class PointMeteoConditions:
-    """Value Object que representa las condiciones meteorológicas concretas
-    en un punto geográfico y altitud específicos durante el cálculo IEEE 738.
-    Es inmutable — se crea para cada segmento y escenario y se descarta."""
+    """WeatherInput + elevation_m del segmento.
+    Se crea justo antes de llamar a IEEE738Calculator."""
 
     temp_amb_c: float
     wind_speed_ms: float
@@ -27,11 +37,10 @@ class PointMeteoConditions:
 
 @dataclass(frozen=True)
 class SegmentRating:
-    """Value Object que representa el resultado del cálculo IEEE 738
-    para un segmento y un escenario estacional concreto.
+    """Resultado IEEE 738 para un segmento y escenario concreto.
     Inmutable — producido por IEEE738Calculator."""
 
-    ampacity_a: float
+    ampacity: float
     temp_conductor_c: float
     qc_wm: float
     qr_wm: float
@@ -42,23 +51,9 @@ class SegmentRating:
 
 @dataclass(frozen=True)
 class ValidationResult:
-    """Value Object que representa el resultado de validar la geometría
-    de un trazado. Inmutable — producido por validate_route()."""
+    """Resultado de validar la geometría de un trazado."""
 
     valid: bool
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     info: dict = field(default_factory=dict)
-
-
-@dataclass
-class SegmentResults:
-    """Value Object que acumula los SegmentRating de los cuatro escenarios
-    estacionales para un mismo segmento durante el cálculo.
-    No es inmutable porque se construye incrementalmente en rates_service."""
-
-    segment_id: str
-    length_km: float
-    avg_elevation_m: float
-    rates: dict[Season, float] = field(default_factory=dict)
-    details: dict = field(default_factory=dict)

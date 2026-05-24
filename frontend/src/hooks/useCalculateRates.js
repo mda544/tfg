@@ -1,45 +1,69 @@
 import { useState, useCallback } from "react";
 import { calculateRates } from "../api/rates";
-import { buildConductorDTO, buildMeteoScenarioDTO } from "../api/types";
-import { densifyRoute, normalizeToLatLon } from "../utils/geometryValidator";
+
+/**
+ * Convierte el mapa de escenarios internos al array WeatherInputDTO
+ * que espera POST /rates.
+ * Escenarios internos: { verano: { temp, viento, angulo, radiacion }, ... }
+ */
+function buildWeatherInputs(scenarios) {
+  return Object.entries(scenarios).map(([season, s]) => ({
+    season,
+    temp_amb_c: s.temp,
+    wind_speed_ms: s.viento,
+    wind_angle_deg: s.angulo,
+    solar_radiation_wm2: s.radiacion,
+  }));
+}
 
 export function useCalculateRates() {
-  const [result,   setResult]   = useState(null);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const calculate = useCallback(async ({ coordinates, conductor, scenarios, useDem }) => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
+  /**
+   * @param {Object} params
+   * @param {string} params.studyCaseId
+   * @param {string} params.conductorId
+   * @param {Object} params.scenarios      { verano: {temp, viento, angulo, radiacion}, ... }
+   * @param {string} [params.climateSource]
+   */
+  const calculate = useCallback(
+    async ({
+      studyCaseId,
+      conductorId,
+      scenarios,
+      climateSource = "manual",
+    }) => {
+      if (!studyCaseId || !conductorId) {
+        setError("Falta el caso de estudio o el conductor.");
+        return null;
+      }
 
-    try {
-      const normalized   = normalizeToLatLon(coordinates);
-      const dense        = densifyRoute(normalized, 500);
-      const hasExcelZ    = dense.some((c) => (c.altitude ?? 0) > 0);
-      const isRealFile   = dense.length > 10;
+      setLoading(true);
+      setError(null);
+      setResult(null);
 
-      const payload = {
-        coordinates:    dense.map(({ lat, lon }) => ({ lat, lon })),
-        conductor:      buildConductorDTO(conductor),
-        scenarios:      Object.entries(scenarios).map(([season, s]) =>
-                          buildMeteoScenarioDTO(season, s)
-                        ),
-        segment_step_m: 500,
-        use_real_spans: hasExcelZ || isRealFile,
-        use_dem:        useDem && !hasExcelZ,
-      };
+      try {
+        const payload = {
+          study_case_id: studyCaseId,
+          conductor_id: conductorId,
+          weather_inputs: buildWeatherInputs(scenarios),
+          climate_source: climateSource,
+        };
 
-      const data = await calculateRates(payload);
-      setResult(data);
-      return data;
-    } catch (err) {
-      setError(err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        const data = await calculateRates(payload);
+        setResult(data);
+        return data;
+      } catch (err) {
+        setError(err.message);
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     setResult(null);

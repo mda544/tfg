@@ -10,9 +10,8 @@ from app.core.utils.geo import haversine_m, calcular_azimut
 
 def _project_line(coordinates: list[dict]) -> LineString:
     points = [(pt["lon"], pt["lat"]) for pt in coordinates]
-    line_geo = LineString(points)
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-    return transform(transformer.transform, line_geo)
+    return transform(transformer.transform, LineString(points))
 
 
 def _to_geopoint(p: Point, transformer_inv: Transformer) -> GeoPoint:
@@ -20,40 +19,25 @@ def _to_geopoint(p: Point, transformer_inv: Transformer) -> GeoPoint:
     return GeoPoint(lat=round(lat, 6), lon=round(lon, 6))
 
 
-def _dict_to_geopoint(d: dict) -> GeoPoint:
-    return GeoPoint(lat=d["lat"], lon=d["lon"])
-
-
-# Segmenta el trazado en tramos de longitud fija.
-def segment_route(
-    coordinates: list[dict],
-    step_m: float = 500.0,
-) -> List[Segment]:
+def segment_route(coordinates: list[dict], step_m: float = 500.0) -> List[Segment]:
+    """Segmenta el trazado en tramos de longitud fija."""
     line_proj = _project_line(coordinates)
     total_len = line_proj.length
     n_segments = max(1, int(total_len / step_m))
     step_real = total_len / n_segments
-
     transformer_inv = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
     segments = []
 
     for i in range(n_segments):
         d_start = i * step_real
-        d_mid = d_start + step_real / 2.0
-        d_end = d_start + step_real
-
         p_start = _to_geopoint(line_proj.interpolate(d_start), transformer_inv)
-        p_mid = _to_geopoint(line_proj.interpolate(d_mid), transformer_inv)
+        p_mid = _to_geopoint(
+            line_proj.interpolate(d_start + step_real / 2), transformer_inv
+        )
         p_end = _to_geopoint(
-            line_proj.interpolate(min(d_end, total_len)), transformer_inv
+            line_proj.interpolate(min(d_start + step_real, total_len)), transformer_inv
         )
-
-        azimuth = calcular_azimut(
-            p_start.lat,
-            p_start.lon,
-            p_end.lat,
-            p_end.lon,
-        )
+        azimuth = calcular_azimut(p_start.lat, p_start.lon, p_end.lat, p_end.lon)
 
         segments.append(
             Segment(
@@ -66,25 +50,18 @@ def segment_route(
                 azimuth_deg=round(azimuth, 1),
             )
         )
-
     return segments
 
 
-# Crea un segmento por vano real entre apoyos consecutivos.
 def segment_by_spans(coordinates: list[dict]) -> List[Segment]:
+    """Crea un segmento por vano real entre apoyos consecutivos."""
     segments = []
-
     for i in range(len(coordinates) - 1):
         p_start = coordinates[i]
         p_end = coordinates[i + 1]
-        elev_start = p_start.get("elevation", 0) or 0
-        elev_end = p_end.get("elevation", 0) or 0
-        length_m = haversine_m(p_start, p_end)
+        elev = ((p_start.get("elevation") or 0) + (p_end.get("elevation") or 0)) / 2
         azimuth = calcular_azimut(
-            p_start["lat"],
-            p_start["lon"],
-            p_end["lat"],
-            p_end["lon"],
+            p_start["lat"], p_start["lon"], p_end["lat"], p_end["lon"]
         )
 
         segments.append(
@@ -97,10 +74,9 @@ def segment_by_spans(coordinates: list[dict]) -> List[Segment]:
                     lon=(p_start["lon"] + p_end["lon"]) / 2,
                 ),
                 end_point=GeoPoint(lat=p_end["lat"], lon=p_end["lon"]),
-                length_km=round(length_m / 1000.0, 3),
-                elevation_m=round((elev_start + elev_end) / 2.0, 1),
+                length_km=round(haversine_m(p_start, p_end) / 1000.0, 3),
+                elevation_m=round(elev, 1),
                 azimuth_deg=round(azimuth, 1),
             )
         )
-
     return segments

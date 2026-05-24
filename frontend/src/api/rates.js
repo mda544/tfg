@@ -1,25 +1,22 @@
 import { apiClient, extractErrorMessage } from "./client";
 
 /**
- * Calcula rates estacionales IEEE 738.
- * @param {import('../api/types').RateCalculationRequest} payload
- * @param {string} [studyCaseId]
+ * POST /rates
+ * @param {{ study_case_id, conductor_id, weather_inputs, climate_source }} payload
  */
-export async function calculateRates(payload, studyCaseId = null) {
+export async function calculateRates(payload) {
   try {
-    const params = studyCaseId ? { study_case_id: studyCaseId } : {};
-    const { data } = await apiClient.post("/rates/", payload, { params });
+    const { data } = await apiClient.post("/rates/", payload);
     return data;
   } catch (err) {
     throw new Error(extractErrorMessage(err));
   }
 }
 
+/** GET /study-cases/{id}/rates — historial de un caso de estudio */
 export async function getRatesByStudyCase(caseId) {
   try {
-    const { data } = await apiClient.get("/rates/", {
-      params: { case_id: caseId },
-    });
+    const { data } = await apiClient.get(`/study-cases/${caseId}/rates`);
     return data;
   } catch (err) {
     throw new Error(extractErrorMessage(err));

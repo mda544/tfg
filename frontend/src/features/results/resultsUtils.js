@@ -15,8 +15,9 @@ export const SEASON_COLOR = {
 export const ELEVATION_SOURCE_LABEL = {
   excel_z: "Z del Excel",
   open_meteo_dem: "DEM Open-Meteo",
-  sin_altitud: "Sin altitud (0 m)",
-  sin_altitud_error: "Sin altitud (error DEM)",
+  line_dem: "DEM (línea guardada)",
+  dem_error: "Sin altitud (error DEM)",
+  none: "Sin altitud (0 m)",
 };
 
 export function ampacityColor(a) {

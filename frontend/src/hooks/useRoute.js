@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import {
   validateRoute,
   densifyRoute,
@@ -6,17 +6,20 @@ import {
 } from "../utils/geometryValidator";
 import { useClimateDefaults } from "./useClimateDefaults";
 
+/**
+ * Gestiona el trazado en memoria — validación, densificación y sincronización climática.
+ */
 export function useRoute(climateSource) {
-  const mapRef = useRef(null);
   const [routeData, setRouteData] = useState(null);
   const [validation, setValidation] = useState(null);
+
   const {
     fetchDefaults,
     loading: loadingClimate,
     slowLoad: climateSlowLoad,
   } = useClimateDefaults();
 
-  const _process = useCallback(async (rawCoords) => {
+  const _process = useCallback((rawCoords) => {
     const normalized = normalizeToLatLon(rawCoords);
     const dense = densifyRoute(normalized, 500);
     setValidation(validateRoute(dense));
@@ -29,25 +32,20 @@ export function useRoute(climateSource) {
     [fetchDefaults, climateSource],
   );
 
+  /** Carga un feature (de archivo o del mapa), procesa coordenadas y sincroniza clima. */
   const loadRoute = useCallback(
     async (rawFeature) => {
       const feature = Array.isArray(rawFeature) ? rawFeature[0] : rawFeature;
-      const dense = await _process(feature.coordinates);
+      const dense = _process(feature.coordinates);
       const final = { ...feature, coordinates: dense };
       setRouteData(final);
-      mapRef.current?.drawRoute(final);
       const scenarios = await _syncClimate(dense);
       return { feature: final, scenarios };
     },
     [_process, _syncClimate],
   );
 
-  const clear = useCallback(() => {
-    mapRef.current?.clearAll();
-    setRouteData(null);
-    setValidation(null);
-  }, []);
-
+  /** Resincroniza el clima con una fuente distinta sin recargar el trazado. */
   const resyncClimate = useCallback(
     (source) => {
       if (!routeData?.coordinates) return Promise.resolve(null);
@@ -56,14 +54,18 @@ export function useRoute(climateSource) {
     [routeData, _syncClimate],
   );
 
+  const clear = useCallback(() => {
+    setRouteData(null);
+    setValidation(null);
+  }, []);
+
   return {
-    mapRef,
     routeData,
     validation,
     loadingClimate,
     climateSlowLoad,
     loadRoute,
-    clear,
     resyncClimate,
+    clear,
   };
 }

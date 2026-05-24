@@ -3,22 +3,23 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.exc import NoResultFound
 
 from app.infrastructure.orm_models import ConductorORM
-from app.api.schemas.models import ConductorCreateDTO
+from app.infrastructure.mappers.conductors_mapper import entity_to_orm, orm_to_entity
+from app.domain.entities import Conductor
 
 
 class ConductorsRepository:
 
-    async def get_all(self, db: AsyncSession, owner_id: str) -> list[ConductorORM]:
+    async def get_all(self, db: AsyncSession, owner_id: str) -> list[Conductor]:
         result = await db.execute(
             select(ConductorORM)
             .where(ConductorORM.owner_id == owner_id)
             .order_by(ConductorORM.name)
         )
-        return list(result.scalars().all())
+        return [orm_to_entity(o) for o in result.scalars().all()]
 
     async def get_by_id(
         self, db: AsyncSession, conductor_id: str, owner_id: str
-    ) -> ConductorORM:
+    ) -> Conductor:
         result = await db.execute(
             select(ConductorORM)
             .where(ConductorORM.id == conductor_id)
@@ -27,7 +28,7 @@ class ConductorsRepository:
         obj = result.scalar_one_or_none()
         if obj is None:
             raise NoResultFound(f"Conductor {conductor_id} not found.")
-        return obj
+        return orm_to_entity(obj)
 
     async def exists(self, db: AsyncSession, conductor_id: str, owner_id: str) -> bool:
         result = await db.execute(
@@ -38,26 +39,31 @@ class ConductorsRepository:
         return result.scalar_one_or_none() is not None
 
     async def create(
-        self, db: AsyncSession, owner_id: str, data: ConductorCreateDTO
-    ) -> ConductorORM:
-        obj = ConductorORM(owner_id=owner_id, **data.model_dump())
+        self, db: AsyncSession, owner_id: str, entity: Conductor
+    ) -> Conductor:
+        obj = entity_to_orm(entity, owner_id)
         db.add(obj)
         await db.flush()
         await db.refresh(obj)
-        return obj
+        return orm_to_entity(obj)
 
     async def update(
-        self,
-        db: AsyncSession,
-        conductor_id: str,
-        owner_id: str,
-        data: ConductorCreateDTO,
-    ) -> ConductorORM:
+        self, db: AsyncSession, conductor_id: str, owner_id: str, entity: Conductor
+    ) -> Conductor:
         await db.execute(
             update(ConductorORM)
             .where(ConductorORM.id == conductor_id)
             .where(ConductorORM.owner_id == owner_id)
-            .values(**data.model_dump())
+            .values(
+                name=entity.name,
+                description=entity.description,
+                diameter_mm=entity.diameter_mm,
+                r_ac_75_ohm_km=entity.r_ac_75_ohm_km,
+                r_ac_25_ohm_km=entity.r_ac_25_ohm_km,
+                emissivity=entity.emissivity,
+                absorptivity=entity.absorptivity,
+                max_temp_c=entity.max_temp_c,
+            )
         )
         return await self.get_by_id(db, conductor_id, owner_id)
 

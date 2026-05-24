@@ -47,9 +47,11 @@ class ClimateRepository:
             for row in rows
         }
 
-    async def save_climate(
+    async def create_climate(
         self, db: AsyncSession, percentiles: dict[Season, SeasonalPercentiles]
     ) -> None:
+        """Persiste los percentiles climáticos en caché.
+        Usa ON CONFLICT DO NOTHING — no sobreescribe si ya existe."""
         for season, p in percentiles.items():
             lat_r, lon_r = self._round_coords(p.lat, p.lon)
             stmt = (

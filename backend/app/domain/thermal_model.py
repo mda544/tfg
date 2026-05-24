@@ -8,6 +8,7 @@ from ieee738 import ieee738 as ieee738_module
 from app.domain.entities import Conductor
 from app.domain.value_objects import PointMeteoConditions, SegmentRating
 
+
 def _day_of_year() -> int:
     return datetime.date.today().timetuple().tm_yday
 
@@ -90,7 +91,7 @@ class IEEE738Calculator:
             mode = "natural"
 
         return SegmentRating(
-            ampacity_a=round(ampacity, 1),
+            ampacity=round(ampacity, 1),  # ← ampacity, no ampacity_a
             temp_conductor_c=tc,
             qc_wm=round(qc, 2),
             qr_wm=round(qr, 2),
