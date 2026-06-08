@@ -1,7 +1,6 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "./auth/useAuth";
-import { useRoute } from "./hooks/useRoute";
-import { useStudyCase } from "./hooks/useStudyCase";
+import { useRouteManager } from "./hooks/useRouteManager";
 import { useCalculateRates } from "./hooks/useCalculateRates";
 import { DEFAULT_CONDUCTORS } from "./features/conductor/conductorData";
 import { DEFAULT_SCENARIOS } from "./features/scenarios/scenarioDefaults";
@@ -14,37 +13,28 @@ import "./App.css";
 
 export default function App() {
   const { logout, session } = useAuth();
-  const mapRef = useRef(null);
 
-  // Conductor completo — SeasonalScenariosPanel necesita los parámetros físicos
-  // para el preview de ampacidad en tiempo real
   const [conductor, setConductor] = useState(DEFAULT_CONDUCTORS[0]);
   const [scenarios, setScenarios] = useState(DEFAULT_SCENARIOS);
   const [climateSource, setClimateSource] = useState("openmeteo");
   const [lineName, setLineName] = useState("");
   const [caseName, setCaseName] = useState("");
 
-  // Hook de trazado — solo geometría y clima, sin persistencia
   const {
+    mapRef,
     routeData,
     validation,
     loadingClimate,
     climateSlowLoad,
-    loadRoute,
-    resyncClimate,
-    clear: clearRoute,
-  } = useRoute(climateSource);
-
-  // Hook de persistencia — POST /lines + POST /study-cases
-  const {
     studyCaseId,
     saving,
-    error: saveError,
-    save: saveStudyCase,
-    reset: resetStudyCase,
-  } = useStudyCase();
+    saveError,
+    loadRoute,
+    resyncClimate,
+    saveRoute,
+    clear,
+  } = useRouteManager(climateSource);
 
-  // Hook de cálculo
   const {
     calculate,
     result,
@@ -52,13 +42,10 @@ export default function App() {
     error: calcError,
   } = useCalculateRates();
 
-  // Handlers
-
   const handleRouteLoaded = useCallback(
     async (rawFeature) => {
-      const { feature, scenarios: newScenarios } = await loadRoute(rawFeature);
+      const { scenarios: newScenarios } = await loadRoute(rawFeature);
       if (newScenarios) setScenarios(newScenarios);
-      mapRef.current?.drawRoute(feature);
     },
     [loadRoute],
   );
@@ -73,30 +60,22 @@ export default function App() {
     [resyncClimate],
   );
 
-  const handleClear = useCallback(() => {
-    mapRef.current?.clearAll();
-    clearRoute();
-    resetStudyCase();
-  }, [clearRoute, resetStudyCase]);
-
   const handleSave = useCallback(async () => {
-    if (!routeData || validation?.valid === false) return;
-    await saveStudyCase(routeData.coordinates, {
+    await saveRoute({
       lineName: lineName || `Línea ${new Date().toLocaleDateString()}`,
       caseName: caseName || `Estudio ${new Date().toLocaleDateString()}`,
       useDem: true,
     });
-  }, [routeData, validation, lineName, caseName, saveStudyCase]);
+  }, [lineName, caseName, saveRoute]);
 
   const handleCalculate = useCallback(async () => {
-    if (!studyCaseId || !conductor?.id || validation?.valid === false) return;
     await calculate({
       studyCaseId,
       conductorId: conductor.id,
       scenarios,
       climateSource,
     });
-  }, [studyCaseId, conductor, scenarios, climateSource, validation, calculate]);
+  }, [studyCaseId, conductor, scenarios, climateSource, calculate]);
 
   const canSave =
     Boolean(routeData) &&
@@ -118,7 +97,7 @@ export default function App() {
             loadingClimate,
             climateSlowLoad,
             onLoaded: handleRouteLoaded,
-            onClear: handleClear,
+            onClear: clear,
           }}
           save={{
             lineName,
@@ -153,7 +132,7 @@ export default function App() {
           <RouteMap
             ref={mapRef}
             onRouteDrawn={handleRouteLoaded}
-            onRouteCleared={handleClear}
+            onRouteCleared={clear}
           />
           {result && <RatesResultsPanel result={result} />}
         </main>

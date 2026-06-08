@@ -1,18 +1,11 @@
-"""
-Seed de datos de referencia.
-Se ejecuta en el lifespan de la aplicación tras create_all.
-Es idempotente — usa INSERT ... ON CONFLICT DO NOTHING para no duplicar.
-"""
-
 import uuid
 from sqlalchemy import text
 from app.infrastructure.database import AsyncSessionLocal
 
-# UUID fijos y estables para el catálogo estándar.
 SEED_CONDUCTORS = [
     {
         "id": "00000000-0000-0000-0000-000000000001",
-        "owner_id": None,  # NULL → conductor global, visible para todos
+        "owner_id": None,
         "name": "LA-110 (Hawk)",
         "description": "Conductor de aluminio-acero 110 mm² — uso frecuente en distribución.",
         "diameter_mm": 21.78,
@@ -62,7 +55,6 @@ SEED_CONDUCTORS = [
 
 
 async def seed_default_conductors() -> None:
-    """Inserta los conductores estándar si no existen. Idempotente."""
     async with AsyncSessionLocal() as db:
         for c in SEED_CONDUCTORS:
             await db.execute(

@@ -9,6 +9,7 @@ COVERAGE = {
 
 LIMITS = {
     "min_points": 2,
+    "max_points": 10_000,  
     "min_length_m": 100,
     "max_length_km": 500,
     "max_bbox_deg": 10,
@@ -21,6 +22,16 @@ def validate_route(coordinates: list[dict]) -> ValidationResult:
     errors = []
     warnings = []
     info = {"n_points": len(coordinates)}
+
+    # Límite máximo de puntos — validación de seguridad antes que nada
+    if len(coordinates) > LIMITS["max_points"]:
+        return ValidationResult(
+            valid=False,
+            errors=[
+                f"El trazado tiene {len(coordinates)} puntos. El máximo permitido es {LIMITS['max_points']}."
+            ],
+            info=info,
+        )
 
     if len(coordinates) < LIMITS["min_points"]:
         return ValidationResult(

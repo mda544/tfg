@@ -1,4 +1,4 @@
-import traceback
+import logging
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import get_db
@@ -6,6 +6,8 @@ from app.infrastructure.orm_models import UserORM
 from app.api.deps import get_current_user
 from app.api.schemas.models import RateCreateDTO, RateResultResponseDTO
 from app.services import rates_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -23,8 +25,11 @@ async def create_rate(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Unexpected error in create_rate: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor. Contacte con el administrador.",
+        )
 
 
 @router.get("/{rate_id}", response_model=RateResultResponseDTO)

@@ -1,7 +1,7 @@
 import { read as readShapefile } from "shapefile";
 
 export async function parseGeoJSON(file) {
-  const text    = await file.text();
+  const text = await file.text();
   const geojson = JSON.parse(text);
 
   const features =
@@ -17,8 +17,10 @@ export async function parseGeoJSON(file) {
 export async function parseSHP(shpFile, dbfFile = null) {
   const shpBuffer = await shpFile.arrayBuffer();
   const dbfBuffer = dbfFile ? await dbfFile.arrayBuffer() : undefined;
-  const features  = [];
-  const source    = await readShapefile(shpBuffer, dbfBuffer, { encoding: "utf-8" });
+  const features = [];
+  const source = await readShapefile(shpBuffer, dbfBuffer, {
+    encoding: "utf-8",
+  });
 
   let result = await source.read();
   while (!result.done) {
@@ -37,20 +39,20 @@ function featureToInternalFormat(feature) {
   switch (type) {
     case "LineString":
       return {
-        tipo:        "Line",
+        tipo: "Line",
         // GeoJSON: [lon, lat] → interno: { lat, lon }
         coordinates: coordinates.map(([lon, lat]) => ({ lat, lon })),
         propiedades: feature.properties ?? {},
       };
     case "MultiLineString":
       return {
-        tipo:        "Line",
+        tipo: "Line",
         coordinates: coordinates.flat().map(([lon, lat]) => ({ lat, lon })),
         propiedades: feature.properties ?? {},
       };
     case "Polygon":
       return {
-        tipo:        "Polygon",
+        tipo: "Polygon",
         coordinates: coordinates[0].map(([lon, lat]) => ({ lat, lon })),
         propiedades: feature.properties ?? {},
       };

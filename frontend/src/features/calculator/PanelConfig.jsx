@@ -3,14 +3,7 @@ import GeometryUploader from "../../components/GeometryUploader";
 import SeasonalScenariosPanel from "../scenarios/SeasonalScenariosPanel";
 import ValidationPanel from "../../components/ValidationPanel";
 
-/**
- * Props agrupadas por responsabilidad:
- *  route     — estado y callbacks del trazado
- *  save      — guardar línea y crear caso de estudio
- *  conductor — conductor seleccionado
- *  climate   — fuente climática
- *  calculator — escenarios y cálculo
- */
+
 export default function PanelConfig({
   route: {
     data: routeData,
@@ -116,7 +109,7 @@ export default function PanelConfig({
         {saveError && <div className="error-banner">Error: {saveError}</div>}
         {studyCaseId ? (
           <p className="ok" style={{ marginTop: "8px" }}>
-            ✓ Línea y estudio guardados
+            Línea y estudio guardados
           </p>
         ) : (
           <button
@@ -125,7 +118,7 @@ export default function PanelConfig({
             disabled={!canSave}
             style={{ marginTop: "8px" }}
           >
-            {saving ? "Guardando…" : "Guardar línea y crear estudio"}
+            {saving ? "Guardando…" : "Guardar línea y crear caso de estudio"}
           </button>
         )}
       </section>

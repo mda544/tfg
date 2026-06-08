@@ -19,8 +19,37 @@ def _to_geopoint(p: Point, transformer_inv: Transformer) -> GeoPoint:
     return GeoPoint(lat=round(lat, 6), lon=round(lon, 6))
 
 
+def _interpolate_elevation_linear(
+    coordinates: list[dict], mid_point: GeoPoint
+) -> float:
+    elev_points = [c for c in coordinates if (c.get("elevation") or 0) > 0]
+
+    if not elev_points:
+        return 0.0
+    if len(elev_points) == 1:
+        return round(elev_points[0]["elevation"], 1)
+
+    # Interpolación lineal entre el primer y último punto con elevación
+    first, last = elev_points[0], elev_points[-1]
+    total = haversine_m(
+        {"lat": first["lat"], "lon": first["lon"]},
+        {"lat": last["lat"], "lon": last["lon"]},
+    )
+    if total == 0:
+        return round(first["elevation"], 1)
+
+    d = haversine_m(
+        {"lat": first["lat"], "lon": first["lon"]},
+        {"lat": mid_point.lat, "lon": mid_point.lon},
+    )
+    t = min(max(d / total, 0.0), 1.0)
+    return round(first["elevation"] + (last["elevation"] - first["elevation"]) * t, 1)
+
+
 def segment_route(coordinates: list[dict], step_m: float = 500.0) -> List[Segment]:
-    """Segmenta el trazado en tramos de longitud fija."""
+    """Segmenta el trazado en tramos de longitud fija.
+    Los puntos son ficticios, su elevación
+    se estima por interpolación lineal a lo largo del trazado."""
     line_proj = _project_line(coordinates)
     total_len = line_proj.length
     n_segments = max(1, int(total_len / step_m))
@@ -38,6 +67,7 @@ def segment_route(coordinates: list[dict], step_m: float = 500.0) -> List[Segmen
             line_proj.interpolate(min(d_start + step_real, total_len)), transformer_inv
         )
         azimuth = calcular_azimut(p_start.lat, p_start.lon, p_end.lat, p_end.lon)
+        elevation = _interpolate_elevation_linear(coordinates, p_mid)
 
         segments.append(
             Segment(
@@ -48,13 +78,15 @@ def segment_route(coordinates: list[dict], step_m: float = 500.0) -> List[Segmen
                 end_point=p_end,
                 length_km=round(step_real / 1000.0, 3),
                 azimuth_deg=round(azimuth, 1),
+                elevation_m=elevation,
             )
         )
     return segments
 
 
 def segment_by_spans(coordinates: list[dict]) -> List[Segment]:
-    """Crea un segmento por vano real entre apoyos consecutivos."""
+    """Crea un segmento por vano real entre apoyos consecutivos.
+    La elevación es la media de los dos extremos del vano"""
     segments = []
     for i in range(len(coordinates) - 1):
         p_start = coordinates[i]

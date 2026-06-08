@@ -9,7 +9,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # API — raramente cambian, pueden tener default
+    # API
     api_title: str = "Pypacity API"
     api_version: str = "1.0.0"
     api_description: str = (

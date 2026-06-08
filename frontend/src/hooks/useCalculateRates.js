@@ -2,9 +2,7 @@ import { useState, useCallback } from "react";
 import { calculateRates } from "../api/rates";
 
 /**
- * Convierte el mapa de escenarios internos al array WeatherInputDTO
- * que espera POST /rates.
- * Escenarios internos: { verano: { temp, viento, angulo, radiacion }, ... }
+ * Convierte el mapa de escenarios internos al array WeatherInputDTO que espera POST /rates.
  */
 function buildWeatherInputs(scenarios) {
   return Object.entries(scenarios).map(([season, s]) => ({
@@ -25,7 +23,7 @@ export function useCalculateRates() {
    * @param {Object} params
    * @param {string} params.studyCaseId
    * @param {string} params.conductorId
-   * @param {Object} params.scenarios      { verano: {temp, viento, angulo, radiacion}, ... }
+   * @param {Object} params.scenarios      
    * @param {string} [params.climateSource]
    */
   const calculate = useCallback(

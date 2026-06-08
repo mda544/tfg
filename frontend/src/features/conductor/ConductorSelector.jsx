@@ -2,14 +2,16 @@ import { useState } from "react";
 import { useConductors } from "../../hooks/useConductors";
 import styles from "./ConductorSelector.module.css";
 
+const GLOBAL_IDS = new Set([
+  "00000000-0000-0000-0000-000000000001",
+  "00000000-0000-0000-0000-000000000002",
+  "00000000-0000-0000-0000-000000000003",
+  "00000000-0000-0000-0000-000000000004",
+]);
+
 export default function ConductorSelector({ selected, onChange }) {
-  const {
-    conductors,
-    custom,
-    saving,
-    error: apiError,
-    create,
-  } = useConductors();
+  const { conductors, saving, error: apiError, create } = useConductors();
+
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -21,6 +23,9 @@ export default function ConductorSelector({ selected, onChange }) {
     max_temp_c: 90,
   });
   const [formError, setFormError] = useState("");
+
+  const global = conductors.filter((c) => GLOBAL_IDS.has(c.id));
+  const custom = conductors.filter((c) => !GLOBAL_IDS.has(c.id));
 
   const selectedConductor =
     conductors.find((c) => c.id === selected) ?? conductors[0];
@@ -59,13 +64,11 @@ export default function ConductorSelector({ selected, onChange }) {
           onChange={handleSelect}
         >
           <optgroup label="Catálogo estándar">
-            {conductors
-              .filter((c) => c.id.startsWith("local-"))
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+            {global.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
           </optgroup>
           {custom.length > 0 && (
             <optgroup label="Mis conductores">

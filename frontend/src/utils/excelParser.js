@@ -21,7 +21,7 @@ function detectCoordinateSystem(x, y) {
 
 // eslint-disable-next-line no-unused-vars
 function detectUTMZone(_easting) {
-  return 30; // Por defecto zona 30N (Península Ibérica)
+  return 30; // Península Ibérica
 }
 
 function getUTMProjection(zone, hemisphere = "N") {

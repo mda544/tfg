@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, or_, and_
 from sqlalchemy.exc import NoResultFound
 
 from app.infrastructure.orm_models import ConductorORM
@@ -12,8 +12,13 @@ class ConductorsRepository:
     async def get_all(self, db: AsyncSession, owner_id: str) -> list[Conductor]:
         result = await db.execute(
             select(ConductorORM)
-            .where(ConductorORM.owner_id == owner_id)
-            .order_by(ConductorORM.name)
+            .where(
+                or_(
+                    ConductorORM.owner_id == owner_id,
+                    ConductorORM.owner_id.is_(None),
+                )
+            )
+            .order_by(ConductorORM.owner_id.is_(None).desc(), ConductorORM.name)
         )
         return [orm_to_entity(o) for o in result.scalars().all()]
 
@@ -21,9 +26,15 @@ class ConductorsRepository:
         self, db: AsyncSession, conductor_id: str, owner_id: str
     ) -> Conductor:
         result = await db.execute(
-            select(ConductorORM)
-            .where(ConductorORM.id == conductor_id)
-            .where(ConductorORM.owner_id == owner_id)
+            select(ConductorORM).where(
+                and_(
+                    ConductorORM.id == conductor_id,
+                    or_(
+                        ConductorORM.owner_id == owner_id,
+                        ConductorORM.owner_id.is_(None),
+                    ),
+                )
+            )
         )
         obj = result.scalar_one_or_none()
         if obj is None:

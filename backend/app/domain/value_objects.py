@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Literal
-from app.domain.types import Season
+from app.domain.types import Season, ConvMode
 
 
 @dataclass(frozen=True)
@@ -46,7 +46,7 @@ class SegmentRating:
     qr_wm: float
     qs_wm: float
     r_tc_ohm_m: float
-    conv_mode: Literal["forced_low", "forced_high", "natural"]
+    conv_mode: ConvMode
 
 
 @dataclass(frozen=True)

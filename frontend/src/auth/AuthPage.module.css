@@ -135,3 +135,21 @@
 .toggleBtn:hover {
   text-decoration: underline;
 }
+
+/* Pista de requisitos (antes de tocar el campo) */
+.hint {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.inputError:focus {
+  border-color: #dc2626 !important;
+}
+ 
+/* Mensaje de error por campo */
+.fieldError {
+  font-size: 0.8rem;
+  color: #dc2626;
+  margin: 0;
+}

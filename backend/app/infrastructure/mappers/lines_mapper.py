@@ -16,7 +16,7 @@ def create_dto_to_entity(dto: LineCreateDTO) -> Line:
 
 
 def entity_to_wkt(entity: Line) -> str:
-    pts = " ".join(f"{c.lon} {c.lat}" for c in entity.coordinates)
+    pts = ", ".join(f"{c.lon} {c.lat}" for c in entity.coordinates)
     return f"LINESTRING({pts})"
 
 

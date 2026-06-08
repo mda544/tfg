@@ -1,14 +1,40 @@
-import { useState, useCallback } from "react";
-import { createConductor, deleteConductor } from "../api/conductors";
+import { useState, useCallback, useEffect } from "react";
+import {
+  createConductor,
+  deleteConductor,
+  getConductors,
+} from "../api/conductors";
 import { buildConductorCreateDTO } from "../api/types";
 import { DEFAULT_CONDUCTORS } from "../features/conductor/conductorData";
 
-export function useConductors() {
-  const [custom,  setCustom]  = useState([]);
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState(null);
+const GLOBAL_IDS = new Set([
+  "00000000-0000-0000-0000-000000000001",
+  "00000000-0000-0000-0000-000000000002",
+  "00000000-0000-0000-0000-000000000003",
+  "00000000-0000-0000-0000-000000000004",
+]);
 
-  const conductors = [...DEFAULT_CONDUCTORS, ...custom];
+export function useConductors() {
+  // Conductores globales del catálogo
+  const [globals, setGlobals] = useState(DEFAULT_CONDUCTORS);
+  // Conductores personalizados del usuario
+  const [custom, setCustom] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Carga conductores del backend al montar y separa globales de custom
+  useEffect(() => {
+    getConductors()
+      .then((data) => {
+        setGlobals(data.filter((c) => GLOBAL_IDS.has(c.id)));
+        setCustom(data.filter((c) => !GLOBAL_IDS.has(c.id)));
+      })
+      .catch(() => {
+        // Si falla mantiene DEFAULT_CONDUCTORS como globales
+      });
+  }, []);
+
+  const conductors = [...globals, ...custom];
 
   const create = useCallback(async (payload) => {
     setSaving(true);

@@ -3,6 +3,8 @@ import {
   SEASON_COLOR,
   ELEVATION_SOURCE_LABEL,
   ampacityColor,
+  CLIMATE_SOURCE_LABEL,
+  CONV_MODE_LABEL,
 } from "./resultsUtils";
 import "./RatesResultsPanel.css";
 
@@ -150,9 +152,8 @@ export default function RatesResultsPanel({ result }) {
                 const c = ampacityColor(seg.design_rate);
                 const firstSeason = seasons[0];
                 const modo =
-                  seg.ratings?.[firstSeason]?.conv_mode ??
-                  seg.details?.[firstSeason]?.conv_mode ??
-                  "—";
+                  CONV_MODE_LABEL[seg.ratings?.[firstSeason]?.conv_mode] ?? "—";
+
                 return (
                   <tr
                     key={seg.segment_id}
@@ -207,7 +208,7 @@ export default function RatesResultsPanel({ result }) {
         </p>
         <p>
           Modelo: IEEE Std 738-2012 · Régimen estacionario · Fuente climática:{" "}
-          {climate_source} · Altitud:{" "}
+          {CLIMATE_SOURCE_LABEL[climate_source] ?? climate_source} · Altitud:{" "}
           {ELEVATION_SOURCE_LABEL[fuenteAlt] ?? fuenteAlt}
         </p>
       </div>

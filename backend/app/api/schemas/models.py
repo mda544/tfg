@@ -1,8 +1,8 @@
 from typing import List, Optional, Dict
 from pydantic import BaseModel
-from app.domain.types import Season
+from app.domain.types import Season, ClimateSource, ElevationSource
 
-# ── Tipos compartidos ──────────────────────────────────────────────────────────
+# Tipos compartidos
 
 
 class GeoPointDTO(BaseModel):
@@ -10,7 +10,7 @@ class GeoPointDTO(BaseModel):
     lon: float
 
 
-# ── Autenticación ──────────────────────────────────────────────────────────────
+# Autenticación
 
 
 class UserCreateDTO(BaseModel):
@@ -30,7 +30,7 @@ class TokenDTO(BaseModel):
     username: str
 
 
-# ── Conductores ────────────────────────────────────────────────────────────────
+# Conductores
 
 
 class ConductorCreateDTO(BaseModel):
@@ -58,7 +58,7 @@ class ConductorResponseDTO(BaseModel):
     updated_at: str
 
 
-# ── Líneas ─────────────────────────────────────────────────────────────────────
+# Líneas
 
 
 class LineCreateDTO(BaseModel):
@@ -85,7 +85,7 @@ class LineResponseDTO(BaseModel):
     updated_at: str
 
 
-# ── Casos de estudio ───────────────────────────────────────────────────────────
+# Casos de estudio
 
 
 class StudyCaseCreateDTO(BaseModel):
@@ -109,7 +109,7 @@ class StudyCaseResponseDTO(BaseModel):
     updated_at: str
 
 
-# ── WeatherInput ───────────────────────────────────────────────────────────────
+# WeatherInput
 
 
 class WeatherInputDTO(BaseModel):
@@ -120,21 +120,18 @@ class WeatherInputDTO(BaseModel):
     solar_radiation_wm2: float
 
 
-# ── Rates — entrada ────────────────────────────────────────────────────────────
+# Rates entrada
 
 
 class RateCreateDTO(BaseModel):
-    """Cuerpo para POST /api/v1/rates.
-    conductor_id apunta al conductor del usuario.
-    El backend lo carga de BD para el cálculo."""
 
     study_case_id: str
     conductor_id: str
     weather_inputs: List[WeatherInputDTO]
-    climate_source: str = "manual"
+    climate_source: ClimateSource = "manual"
 
 
-# ── Rates — respuesta ──────────────────────────────────────────────────────────
+# Rates respuesta
 
 
 class SegmentRatingDTO(BaseModel):
@@ -166,7 +163,7 @@ class RateResultResponseDTO(BaseModel):
     conductor: ConductorResponseDTO
     weather_inputs: List[WeatherInputDTO]
     climate_source: str
-    elevation_source: str
+    elevation_source: ElevationSource
     n_segments: int
     rate_summer: float
     rate_autumn: float
@@ -178,7 +175,7 @@ class RateResultResponseDTO(BaseModel):
     created_at: Optional[str] = None
 
 
-# ── Clima ──────────────────────────────────────────────────────────────────────
+# Clima
 
 
 class SeasonalPercentilesDTO(BaseModel):
@@ -201,7 +198,7 @@ class ClimatePercentilesResponseDTO(BaseModel):
     percentiles: Dict[Season, SeasonalPercentilesDTO]
 
 
-# ── Elevación ──────────────────────────────────────────────────────────────────
+# Elevación
 
 
 class ElevationResponseDTO(BaseModel):
