@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +22,7 @@ from app.infrastructure import orm_models
 from app.infrastructure.clients.http_client import startup, shutdown
 from app.seed import seed_default_conductors
 
-# Rate limiter
+logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -43,9 +44,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Registrar el limiter y el handler de error 429
+# Rate limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# Handler global para excepciones no controladas
+# loguea el detalle en el servidor y devuelve un mensaje genérico al cliente
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(
+        "Unhandled exception on %s %s: %s", request.method, request.url.path, exc
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Error interno del servidor. Contacte con el administrador."
+        },
+    )
+
 
 app.add_middleware(
     CORSMiddleware,

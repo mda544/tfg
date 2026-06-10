@@ -31,29 +31,58 @@ export async function parseSHP(shpFile, dbfFile = null) {
   return features;
 }
 
-/** Convierte una Feature GeoJSON al formato interno con {lat, lon}. */
+/** Convierte una Feature GeoJSON al formato interno con {lat, lon, elevation_m?}. */
 function featureToInternalFormat(feature) {
   if (!feature?.geometry) return null;
   const { type, coordinates } = feature.geometry;
 
+  // GeoJSON puede tener [lon, lat] o [lon, lat, z]
+  const toPoint = ([lon, lat, z]) => ({
+    lat,
+    lon,
+    ...(z !== undefined && z !== null ? { elevation_m: z } : {}),
+  });
+
+  // Construye puntos singulares desde features de tipo Point del mismo FeatureCollection
+  const buildSingularPoints = (coords) =>
+    coords.map((c, idx) => ({
+      lat: c.lat,
+      lon: c.lon,
+      number: idx + 1,
+      ...(c.elevation_m !== undefined ? { altitud: c.elevation_m } : {}),
+    }));
+
   switch (type) {
-    case "LineString":
+    case "LineString": {
+      const coords = coordinates.map(toPoint);
       return {
         tipo: "Line",
-        // GeoJSON: [lon, lat] → interno: { lat, lon }
-        coordinates: coordinates.map(([lon, lat]) => ({ lat, lon })),
-        propiedades: feature.properties ?? {},
+        coordinates: coords,
+        propiedades: {
+          ...(feature.properties ?? {}),
+          fuente: "geojson",
+          n_apoyos: coords.length,
+          puntos_singulares: buildSingularPoints(coords),
+        },
       };
-    case "MultiLineString":
+    }
+    case "MultiLineString": {
+      const coords = coordinates.flat().map(toPoint);
       return {
         tipo: "Line",
-        coordinates: coordinates.flat().map(([lon, lat]) => ({ lat, lon })),
-        propiedades: feature.properties ?? {},
+        coordinates: coords,
+        propiedades: {
+          ...(feature.properties ?? {}),
+          fuente: "geojson",
+          n_apoyos: coords.length,
+          puntos_singulares: buildSingularPoints(coords),
+        },
       };
+    }
     case "Polygon":
       return {
         tipo: "Polygon",
-        coordinates: coordinates[0].map(([lon, lat]) => ({ lat, lon })),
+        coordinates: coordinates[0].map(toPoint),
         propiedades: feature.properties ?? {},
       };
     default:

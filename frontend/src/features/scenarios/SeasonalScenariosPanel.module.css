@@ -21,12 +21,30 @@
   cursor: pointer;
   transition: all 0.15s;
 }
-.tab:hover { background: var(--color-background-secondary); }
+.tab:hover {
+  background: var(--color-background-secondary);
+}
 
-.tabActive.tab_coral  { background: #FAECE7; color: #712B13; border-color: #D85A30; }
-.tabActive.tab_blue   { background: #E6F1FB; color: #0C447C; border-color: #185FA5; }
-.tabActive.tab_green  { background: #EAF3DE; color: #27500A; border-color: #3B6D11; }
-.tabActive.tab_amber  { background: #FAEEDA; color: #633806; border-color: #BA7517; }
+.tabActive.tab_coral {
+  background: #faece7;
+  color: #712b13;
+  border-color: #d85a30;
+}
+.tabActive.tab_blue {
+  background: #e6f1fb;
+  color: #0c447c;
+  border-color: #185fa5;
+}
+.tabActive.tab_green {
+  background: #eaf3de;
+  color: #27500a;
+  border-color: #3b6d11;
+}
+.tabActive.tab_amber {
+  background: #faeeda;
+  color: #633806;
+  border-color: #ba7517;
+}
 
 .badge {
   display: inline-block;
@@ -35,15 +53,53 @@
   border-radius: var(--border-radius-md);
   align-self: flex-start;
 }
-.badge_coral  { background: #FAECE7; color: #712B13; }
-.badge_blue   { background: #E6F1FB; color: #0C447C; }
-.badge_green  { background: #EAF3DE; color: #27500A; }
-.badge_amber  { background: #FAEEDA; color: #633806; }
+.badge_coral {
+  background: #faece7;
+  color: #712b13;
+}
+.badge_blue {
+  background: #e6f1fb;
+  color: #0c447c;
+}
+.badge_green {
+  background: #eaf3de;
+  color: #27500a;
+}
+.badge_amber {
+  background: #faeeda;
+  color: #633806;
+}
 
-.field { display: flex; flex-direction: column; gap: 4px; }
-.fieldHeader { display: flex; justify-content: space-between; align-items: baseline; }
-.fieldLabel  { font-size: 12px; color: var(--color-text-secondary); }
-.fieldValue  { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fieldHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.fieldLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.fieldValue {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+/* Información de dirección ERA5 — reemplaza el slider de ángulo cuando hay datos ERA5 */
+.windDirInfo {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--color-background-secondary);
+  border-radius: var(--border-radius-md);
+  line-height: 1.5;
+}
 
 .metrics {
   display: grid;
@@ -58,11 +114,27 @@
   display: flex;
   flex-direction: column;
 }
-.metricLabel { font-size: 11px; color: var(--color-text-secondary); }
-.metricValue { font-size: 22px; font-weight: 500; color: var(--color-text-primary); line-height: 1.2; margin-top: 2px; }
-.metricUnit  { font-size: 11px; color: var(--color-text-secondary); }
+.metricLabel {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.metricValue {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+.metricUnit {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
 
-.actions { display: flex; gap: 6px; margin-top: 2px; }
+.actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
 .btn {
   flex: 1;
   padding: 7px;
@@ -73,8 +145,13 @@
   color: var(--color-text-secondary);
   cursor: pointer;
 }
-.btn:hover { background: var(--color-background-secondary); }
-.btnSecondary { color: var(--color-text-primary); font-weight: 500; }
+.btn:hover {
+  background: var(--color-background-secondary);
+}
+.btnSecondary {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
 
 .note {
   font-size: 11px;

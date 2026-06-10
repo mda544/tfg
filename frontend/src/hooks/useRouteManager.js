@@ -8,17 +8,11 @@ import { useClimateDefaults } from "./useClimateDefaults";
 import { createLine } from "../api/lines";
 import { createStudyCase } from "../api/studyCases";
 
-/**
- * Gestiona todo el ciclo de vida del trazado
- */
 export function useRouteManager(climateSource) {
   const mapRef = useRef(null);
 
-  // Estado del trazado
   const [routeData, setRouteData] = useState(null);
   const [validation, setValidation] = useState(null);
-
-  // Estado de persistencia
   const [studyCaseId, setStudyCaseId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -27,6 +21,8 @@ export function useRouteManager(climateSource) {
     fetchDefaults,
     loading: loadingClimate,
     slowLoad: climateSlowLoad,
+    apiDefaults,
+    resetDefaults,
   } = useClimateDefaults();
 
   const _process = useCallback((rawCoords) => {
@@ -42,21 +38,20 @@ export function useRouteManager(climateSource) {
     [fetchDefaults, climateSource],
   );
 
-  /** Carga un archivo o mapa (feature), procesa y sincroniza clima. */
   const loadRoute = useCallback(
     async (rawFeature) => {
       const feature = Array.isArray(rawFeature) ? rawFeature[0] : rawFeature;
       const dense = _process(feature.coordinates);
       const final = { ...feature, coordinates: dense };
       setRouteData(final);
+      resetDefaults();
       mapRef.current?.drawRoute(final);
       const scenarios = await _syncClimate(dense);
       return { feature: final, scenarios };
     },
-    [_process, _syncClimate],
+    [_process, _syncClimate, resetDefaults],
   );
 
-  /** Resincroniza el clima con una fuente distinta. */
   const resyncClimate = useCallback(
     (source) => {
       if (!routeData?.coordinates) return Promise.resolve(null);
@@ -65,35 +60,41 @@ export function useRouteManager(climateSource) {
     [routeData, _syncClimate],
   );
 
-  /** Persiste la línea y crea el caso de estudio en el backend. */
   const saveRoute = useCallback(
     async (opts = {}) => {
       if (!routeData) return null;
       setSaving(true);
       setSaveError(null);
       try {
-        const mappedCoords = routeData.coordinates.map(
-          ({ lat, lon, altitud }) => ({
+        const singulars = routeData.propiedades?.puntos_singulares ?? [];
+        const hasRealSpans = singulars.length >= 2;
+
+        // Enviar elevation_m si viene del archivo (Excel col Z o GeoJSON con Z)
+        const coordsPayload = routeData.coordinates.map(
+          ({ lat, lon, elevation_m, altitud }) => ({
             lat,
             lon,
-            ...(altitud && altitud > 0 ? { altitud } : {}),
+            ...(elevation_m != null
+              ? { elevation_m }
+              : altitud != null
+                ? { elevation_m: altitud }
+                : {}),
           }),
         );
 
+        // 1. POST /lines
         const line = await createLine({
           name: opts.lineName ?? "Línea sin nombre",
           description: opts.lineDesc ?? null,
-          coordinates: mappedCoords,
+          coordinates: coordsPayload,
         });
 
-        const isExcel = routeData?.propiedades?.fuente === "excel";
-
-
+        // 2. POST /study-cases
         const sc = await createStudyCase({
           name: opts.caseName ?? `Estudio ${new Date().toLocaleDateString()}`,
           line_id: line.id,
           segment_step_m: opts.segmentStep ?? 500.0,
-          use_real_spans: opts.useRealSpans ?? isExcel,
+          use_real_spans: opts.useRealSpans ?? hasRealSpans,
           use_dem: opts.useDem ?? true,
         });
 
@@ -109,28 +110,25 @@ export function useRouteManager(climateSource) {
     [routeData],
   );
 
-  /** Limpia todo */
   const clear = useCallback(() => {
     mapRef.current?.clearAll();
     setRouteData(null);
     setValidation(null);
     setStudyCaseId(null);
     setSaveError(null);
-  }, []);
+    resetDefaults();
+  }, [resetDefaults]);
 
   return {
-    // Ref del mapa
     mapRef,
-    // Estado del trazado
     routeData,
     validation,
     loadingClimate,
     climateSlowLoad,
-    // Estado de persistencia
     studyCaseId,
     saving,
     saveError,
-    // Acciones
+    apiDefaults,
     loadRoute,
     resyncClimate,
     saveRoute,

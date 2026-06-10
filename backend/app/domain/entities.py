@@ -5,7 +5,6 @@ from app.domain.value_objects import GeoPoint, WeatherInput, SegmentRating
 
 @dataclass
 class Conductor:
-    """Entidad — conductor eléctrico del usuario. UUID de BD."""
 
     name: str
     diameter_mm: float
@@ -22,7 +21,7 @@ class Conductor:
 
 @dataclass
 class Line:
-    """Entidad — trazado geográfico de la línea. UUID de BD."""
+    """Trazado geográfico de la línea."""
 
     name: str
     coordinates: list[GeoPoint]
@@ -43,7 +42,7 @@ class Line:
 
 @dataclass
 class StudyCase:
-    """Entidad — agrupa una línea con su historial de cálculos."""
+    """Agrupa una línea con su historial de cálculos(rates)."""
 
     name: str
     line_id: str
@@ -58,15 +57,15 @@ class StudyCase:
 
 @dataclass
 class Segment:
-    """Entidad — tramo del trazado con geometría y resultados IEEE 738.
+    """Tramo del trazado con geometría y resultados IEEE 738.
     Tiene id propio (T001/V002) y se persiste en BD con FK a RateResult.
-    Su ciclo de vida está ligado al RateResult — no tiene endpoint REST propio.
+    Su ciclo de vida está ligado al RateResult, no tiene endpoint REST propio.
 
     Se construye en dos pasos en rates_service:
       1. segmentation.py rellena la geometría
       2. El bucle IEEE 738 rellena rates y ratings por estación
 
-    design_rate = min(rates.values()) — el tramo más restrictivo."""
+    design_rate = el tramo más restrictivo."""
 
     id: str
     index: int
@@ -86,7 +85,7 @@ class Segment:
 
 @dataclass
 class RateResult:
-    """Entidad — resultado de un cálculo de rates. UUID de BD.
+    """Resultado de un cálculo de rates.
     design_rate = min de los design_rate de todos los segmentos."""
 
     id: str
@@ -120,7 +119,7 @@ class RateResult:
 
 @dataclass
 class SeasonalPercentiles:
-    """Entidad — caché de percentiles históricos. No es del dominio central."""
+    """Caché de percentiles históricos. No es del dominio central."""
 
     season: str
     lat: float
@@ -131,6 +130,7 @@ class SeasonalPercentiles:
     wind_p10_ms: float
     wind_p50_ms: float
     wind_p90_ms: float
+    wind_dir_predominant_deg: float       
     radiation_p50_wm2: float
     radiation_p90_wm2: float
     n_hours: int

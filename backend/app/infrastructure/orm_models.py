@@ -49,9 +49,7 @@ class ConductorORM(Base):
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
-    owner_id: Mapped[str | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True
-    )  # None = conductor global
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     diameter_mm: Mapped[float] = mapped_column(Float, nullable=False)
@@ -99,10 +97,6 @@ class LineORM(Base):
 
 
 class StudyCaseORM(Base):
-    """Agrupa una línea con su historial de cálculos.
-    No tiene conductor ni weather_inputs propios —
-    cada RateResult tiene los suyos."""
-
     __tablename__ = "study_cases"
 
     id: Mapped[str] = mapped_column(
@@ -123,7 +117,9 @@ class StudyCaseORM(Base):
     owner: Mapped["UserORM"] = relationship(back_populates="study_cases")
     line: Mapped["LineORM"] = relationship(back_populates="study_cases")
     rate_results: Mapped[list["RateResultORM"]] = relationship(
-        back_populates="study_case", cascade="all, delete-orphan"
+        back_populates="study_case",
+        cascade="all, delete",
+        passive_deletes=True,
     )
 
 
@@ -134,7 +130,7 @@ class RateResultORM(Base):
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
     study_case_id: Mapped[str] = mapped_column(
-        ForeignKey("study_cases.id"), nullable=False
+        ForeignKey("study_cases.id", ondelete="CASCADE"), nullable=False
     )
     conductor_id: Mapped[str] = mapped_column(
         ForeignKey("conductors.id"), nullable=False
@@ -153,18 +149,18 @@ class RateResultORM(Base):
     study_case: Mapped["StudyCaseORM"] = relationship(back_populates="rate_results")
     conductor: Mapped["ConductorORM"] = relationship()
     weather_inputs: Mapped[list["RateWeatherInputORM"]] = relationship(
-        back_populates="rate_result", cascade="all, delete-orphan"
+        back_populates="rate_result",
+        cascade="all, delete",
+        passive_deletes=True,
     )
     segments: Mapped[list["SegmentORM"]] = relationship(
-        back_populates="rate_result", cascade="all, delete-orphan"
+        back_populates="rate_result",
+        cascade="all, delete",
+        passive_deletes=True,
     )
 
 
 class RateWeatherInputORM(Base):
-    """Condiciones meteorológicas usadas en un cálculo concreto.
-    4 filas por RateResult — una por Season.
-    Son la entrada común del cálculo IEEE 738 para todos los segmentos."""
-
     __tablename__ = "rate_weather_inputs"
     __table_args__ = (
         UniqueConstraint(
@@ -176,7 +172,7 @@ class RateWeatherInputORM(Base):
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
     rate_result_id: Mapped[str] = mapped_column(
-        ForeignKey("rate_results.id"), nullable=False
+        ForeignKey("rate_results.id", ondelete="CASCADE"), nullable=False
     )
     season: Mapped[str] = mapped_column(
         SAEnum("verano", "otono", "invierno", "primavera", name="season_enum"),
@@ -185,22 +181,20 @@ class RateWeatherInputORM(Base):
     temp_amb_c: Mapped[float] = mapped_column(Float, nullable=False)
     wind_speed_ms: Mapped[float] = mapped_column(Float, nullable=False)
     wind_angle_deg: Mapped[float] = mapped_column(Float, default=90.0)
+    wind_dir_predominant_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
     solar_radiation_wm2: Mapped[float] = mapped_column(Float, nullable=False)
 
     rate_result: Mapped["RateResultORM"] = relationship(back_populates="weather_inputs")
 
 
 class SegmentORM(Base):
-    """Tabla espacial para consultas PostGIS y análisis de resultados por tramo.
-    Todas las columnas son consultables directamente — sin JSONB."""
-
     __tablename__ = "segments"
 
     id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=_uuid
     )
     rate_result_id: Mapped[str] = mapped_column(
-        ForeignKey("rate_results.id"), nullable=False
+        ForeignKey("rate_results.id", ondelete="CASCADE"), nullable=False
     )
     segment_id: Mapped[str] = mapped_column(String(10), nullable=False)
     index: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -213,33 +207,27 @@ class SegmentORM(Base):
     length_km: Mapped[float] = mapped_column(Float, nullable=False)
     elevation_m: Mapped[float] = mapped_column(Float, default=0.0)
     azimuth_deg: Mapped[float] = mapped_column(Float, default=90.0)
-    # Ampacidad por estación
     rate_summer: Mapped[float] = mapped_column(Float, nullable=False)
     rate_autumn: Mapped[float] = mapped_column(Float, nullable=False)
     rate_winter: Mapped[float] = mapped_column(Float, nullable=False)
     rate_spring: Mapped[float] = mapped_column(Float, nullable=False)
     design_rate: Mapped[float] = mapped_column(Float, nullable=False)
-    # Calor convectivo (W/m)
     qc_summer: Mapped[float] = mapped_column(Float, nullable=False)
     qc_autumn: Mapped[float] = mapped_column(Float, nullable=False)
     qc_winter: Mapped[float] = mapped_column(Float, nullable=False)
     qc_spring: Mapped[float] = mapped_column(Float, nullable=False)
-    # Calor radiativo (W/m)
     qr_summer: Mapped[float] = mapped_column(Float, nullable=False)
     qr_autumn: Mapped[float] = mapped_column(Float, nullable=False)
     qr_winter: Mapped[float] = mapped_column(Float, nullable=False)
     qr_spring: Mapped[float] = mapped_column(Float, nullable=False)
-    # Calor solar (W/m)
     qs_summer: Mapped[float] = mapped_column(Float, nullable=False)
     qs_autumn: Mapped[float] = mapped_column(Float, nullable=False)
     qs_winter: Mapped[float] = mapped_column(Float, nullable=False)
     qs_spring: Mapped[float] = mapped_column(Float, nullable=False)
-    # Resistencia térmica (Ω/m)
     r_tc_summer: Mapped[float] = mapped_column(Float, nullable=False)
     r_tc_autumn: Mapped[float] = mapped_column(Float, nullable=False)
     r_tc_winter: Mapped[float] = mapped_column(Float, nullable=False)
     r_tc_spring: Mapped[float] = mapped_column(Float, nullable=False)
-    # Modo de convección
     conv_mode_summer: Mapped[str] = mapped_column(String(20), nullable=False)
     conv_mode_autumn: Mapped[str] = mapped_column(String(20), nullable=False)
     conv_mode_winter: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -267,6 +255,7 @@ class ClimateCacheORM(Base):
     wind_p10_ms: Mapped[float] = mapped_column(Float, nullable=False)
     wind_p50_ms: Mapped[float] = mapped_column(Float, nullable=False)
     wind_p90_ms: Mapped[float] = mapped_column(Float, nullable=False)
+    wind_dir_predominant_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
     radiation_p50_wm2: Mapped[float] = mapped_column(Float, nullable=False)
     radiation_p90_wm2: Mapped[float] = mapped_column(Float, nullable=False)
     n_hours: Mapped[int] = mapped_column(Integer, nullable=False)

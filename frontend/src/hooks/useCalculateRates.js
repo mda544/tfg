@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { calculateRates } from "../api/rates";
 
 /**
- * Convierte el mapa de escenarios internos al array WeatherInputDTO que espera POST /rates.
+ * Convierte el mapa de escenarios internos al array WeatherInputDTO
  */
 function buildWeatherInputs(scenarios) {
   return Object.entries(scenarios).map(([season, s]) => ({
@@ -11,6 +11,7 @@ function buildWeatherInputs(scenarios) {
     wind_speed_ms: s.viento,
     wind_angle_deg: s.angulo,
     solar_radiation_wm2: s.radiacion,
+    wind_dir_predominant_deg: s.wind_dir_predominant_deg ?? null,
   }));
 }
 
@@ -19,13 +20,6 @@ export function useCalculateRates() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * @param {Object} params
-   * @param {string} params.studyCaseId
-   * @param {string} params.conductorId
-   * @param {Object} params.scenarios      
-   * @param {string} [params.climateSource]
-   */
   const calculate = useCallback(
     async ({
       studyCaseId,
@@ -68,5 +62,5 @@ export function useCalculateRates() {
     setError(null);
   }, []);
 
-  return { calculate, result, loading, error, reset };
+  return { result, loading, error, calculate, reset };
 }

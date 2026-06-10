@@ -34,3 +34,7 @@ limits>=3.6.0
 
 # Librería local
 #./pypacity
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

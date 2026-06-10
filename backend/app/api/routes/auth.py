@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from app.infrastructure.database import get_db
+from app.api.deps import get_db
 from app.api.schemas.models import UserCreateDTO, LoginDTO, TokenDTO
 from app.services import auth_service
 
@@ -18,8 +18,7 @@ async def register(
     data: UserCreateDTO,
     db: AsyncSession = Depends(get_db),
 ):
-    """Crea un nuevo usuario. Devuelve token de sesión.
-    Limitado a 10 registros por minuto por IP."""
+    
     return await auth_service.register(db, data)
 
 
@@ -30,6 +29,5 @@ async def login(
     data: LoginDTO,
     db: AsyncSession = Depends(get_db),
 ):
-    """Inicia sesión. Devuelve token que representa la sesión.
-    Limitado a 5 intentos por minuto por IP para evitar fuerza bruta."""
+    
     return await auth_service.login(db, data)

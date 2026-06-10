@@ -8,7 +8,7 @@ from app.domain.types import Season, ClimateSource, ElevationSource
 class GeoPointDTO(BaseModel):
     lat: float
     lon: float
-
+    elevation_m: Optional[float] = None   
 
 # Autenticación
 
@@ -118,6 +118,7 @@ class WeatherInputDTO(BaseModel):
     wind_speed_ms: float
     wind_angle_deg: float = 90.0
     solar_radiation_wm2: float
+    wind_dir_predominant_deg: Optional[float] = None   
 
 
 # Rates entrada
@@ -185,6 +186,7 @@ class SeasonalPercentilesDTO(BaseModel):
     wind_p10_ms: float
     wind_p50_ms: float
     wind_p90_ms: float
+    wind_dir_predominant_deg: Optional[float] = None
     radiation_p50_wm2: float
     radiation_p90_wm2: float
     n_hours: int

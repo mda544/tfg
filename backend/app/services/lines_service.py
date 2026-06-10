@@ -1,11 +1,14 @@
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
-from fastapi import HTTPException
 
 from app.infrastructure.repositories.lines_repository import lines_repo
 from app.infrastructure.mappers.lines_mapper import create_dto_to_entity, entity_to_dto
 from app.services.elevation_service import add_elevation
 from app.api.schemas.models import LineCreateDTO, LineResponseDTO
+
+_MAX_POINTS = 10_000
+_MIN_POINTS = 2
 
 
 async def get_all(db: AsyncSession, user_id: str) -> list[LineResponseDTO]:
@@ -22,13 +25,30 @@ async def get_by_id(db: AsyncSession, line_id: str, user_id: str) -> LineRespons
 async def create(
     db: AsyncSession, data: LineCreateDTO, user_id: str
 ) -> LineResponseDTO:
+    # Validación del número de puntos antes de persistir
+    if len(data.coordinates) < _MIN_POINTS:
+        raise HTTPException(422, detail="El trazado necesita al menos 2 puntos.")
+    if len(data.coordinates) > _MAX_POINTS:
+        raise HTTPException(
+            422,
+            detail=f"El trazado no puede superar los {_MAX_POINTS:,} puntos."
+            f" Recibidos: {len(data.coordinates)}.",
+        )
+
     entity = create_dto_to_entity(data)
     line = await lines_repo.create(db, user_id, entity)
 
     try:
-        coordinates = [{"lat": c.lat, "lon": c.lon} for c in line.coordinates]
+        coordinates = [
+            {
+                "lat": c.lat,
+                "lon": c.lon,
+                **({"elevation_m": c.elevation_m} if c.elevation_m is not None else {}),
+            }
+            for c in line.coordinates
+        ]
         enriched = await add_elevation(db, coordinates)
-        elevations = [c.get("elevation", 0.0) or 0.0 for c in enriched]
+        elevations = [c.get("elevation_m", 0.0) or 0.0 for c in enriched]
         line = await lines_repo.enrich_with_elevation(
             db,
             line.id,

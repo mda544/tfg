@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.infrastructure.database import get_db
+from app.api.deps import get_db
 from app.api.schemas.models import ClimatePercentilesResponseDTO
 from app.services import climate_service
 

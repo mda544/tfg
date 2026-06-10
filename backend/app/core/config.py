@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     )
 
     # API
-    api_title: str = "Pypacity API"
+    api_title: str = "AmpacityGIS"
     api_version: str = "1.0.0"
     api_description: str = (
         "Seasonal static ampacity rating of overhead lines (IEEE 738)."

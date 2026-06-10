@@ -1,11 +1,13 @@
 import { useState, useCallback } from "react";
 import { getClimatePercentiles } from "../api/climate";
 
-/** Obtiene percentiles climáticos históricos y los convierte al formato de escenarios estacionales. */
 export function useClimateDefaults() {
   const [loading, setLoading] = useState(false);
   const [slowLoad, setSlowLoad] = useState(false);
   const [error, setError] = useState(null);
+
+  // apiDefaults últimos valores recibidos de la API (ERA5 o NASA).
+  const [apiDefaults, setApiDefaults] = useState(null);
 
   const fetchDefaults = useCallback(
     async (coordinates, source = "openmeteo") => {
@@ -21,7 +23,7 @@ export function useClimateDefaults() {
         const mid = coordinates[Math.floor(coordinates.length / 2)];
         const data = await getClimatePercentiles(mid.lat, mid.lon, source);
 
-        return Object.fromEntries(
+        const scenarios = Object.fromEntries(
           Object.entries(data.percentiles).map(([season, p]) => [
             season,
             {
@@ -29,9 +31,14 @@ export function useClimateDefaults() {
               viento: p.wind_p10_ms,
               radiacion: p.radiation_p90_wm2,
               angulo: 90,
+              wind_dir_predominant_deg: p.wind_dir_predominant_deg ?? null,
             },
           ]),
         );
+
+        setApiDefaults(scenarios);
+
+        return scenarios;
       } catch (err) {
         setError(err.message);
         return null;
@@ -44,5 +51,16 @@ export function useClimateDefaults() {
     [],
   );
 
-  return { fetchDefaults, loading, slowLoad, error };
+  const resetDefaults = useCallback(() => {
+    setApiDefaults(null);
+  }, []);
+
+  return {
+    fetchDefaults,
+    loading,
+    slowLoad,
+    error,
+    apiDefaults,
+    resetDefaults,
+  };
 }

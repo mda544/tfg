@@ -1,5 +1,5 @@
 from app.domain.entities import Conductor, RateResult
-from app.domain.value_objects import WeatherInput, ValidationResult
+from app.domain.value_objects import WeatherInput
 from app.domain.types import Season, SEASONS
 from app.infrastructure.orm_models import RateResultORM, RateWeatherInputORM
 from app.infrastructure.mappers.conductors_mapper import (
@@ -22,6 +22,7 @@ def weather_input_dto_to_vo(dto: WeatherInputDTO) -> WeatherInput:
         wind_speed_ms=dto.wind_speed_ms,
         wind_angle_deg=dto.wind_angle_deg,
         solar_radiation_wm2=dto.solar_radiation_wm2,
+        wind_dir_predominant_deg=dto.wind_dir_predominant_deg,
     )
 
 
@@ -32,6 +33,7 @@ def weather_input_vo_to_dto(wi: WeatherInput) -> WeatherInputDTO:
         wind_speed_ms=wi.wind_speed_ms,
         wind_angle_deg=wi.wind_angle_deg,
         solar_radiation_wm2=wi.solar_radiation_wm2,
+        wind_dir_predominant_deg=wi.wind_dir_predominant_deg,
     )
 
 
@@ -44,11 +46,12 @@ def weather_input_vo_to_orm(
         temp_amb_c=wi.temp_amb_c,
         wind_speed_ms=wi.wind_speed_ms,
         wind_angle_deg=wi.wind_angle_deg,
+        wind_dir_predominant_deg=wi.wind_dir_predominant_deg,
         solar_radiation_wm2=wi.solar_radiation_wm2,
     )
 
 
-# ORM → Entidad
+# ORM -> Entidad
 
 
 def orm_to_entity(obj: RateResultORM) -> RateResult:
@@ -61,6 +64,7 @@ def orm_to_entity(obj: RateResultORM) -> RateResult:
             wind_speed_ms=wi.wind_speed_ms,
             wind_angle_deg=wi.wind_angle_deg,
             solar_radiation_wm2=wi.solar_radiation_wm2,
+            wind_dir_predominant_deg=wi.wind_dir_predominant_deg,
         )
         for wi in sorted(obj.weather_inputs, key=lambda w: SEASONS.index(w.season))
     ]
@@ -84,7 +88,7 @@ def orm_to_entity(obj: RateResultORM) -> RateResult:
     )
 
 
-# Entidad → DTO
+# Entidad -> DTO
 
 
 def entity_to_dto(entity: RateResult) -> RateResultResponseDTO:

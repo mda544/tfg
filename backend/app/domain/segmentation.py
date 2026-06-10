@@ -5,7 +5,7 @@ from pyproj import Transformer
 
 from app.domain.entities import Segment
 from app.domain.value_objects import GeoPoint
-from app.core.utils.geo import haversine_m, calcular_azimut
+from app.domain.geo import haversine_m, calcular_azimut
 
 
 def _project_line(coordinates: list[dict]) -> LineString:

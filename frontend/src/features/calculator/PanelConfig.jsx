@@ -3,7 +3,6 @@ import GeometryUploader from "../../components/GeometryUploader";
 import SeasonalScenariosPanel from "../scenarios/SeasonalScenariosPanel";
 import ValidationPanel from "../../components/ValidationPanel";
 
-
 export default function PanelConfig({
   route: {
     data: routeData,
@@ -28,6 +27,7 @@ export default function PanelConfig({
   climate: { source: climateSource, onChange: onClimateSourceChange },
   calculator: {
     scenarios,
+    apiDefaults,
     onScenariosChange,
     onCalculate,
     calculating,
@@ -37,7 +37,6 @@ export default function PanelConfig({
 }) {
   return (
     <aside className="panel-configuracion">
-      {/* Conductor */}
       <section className="panel-section">
         <h2>Conductor</h2>
         <ConductorSelector
@@ -46,7 +45,6 @@ export default function PanelConfig({
         />
       </section>
 
-      {/* Opciones */}
       <section className="panel-section">
         <h2>Opciones de cálculo</h2>
         <label className="field-label">Fuente climática histórica</label>
@@ -62,7 +60,6 @@ export default function PanelConfig({
         </select>
       </section>
 
-      {/* Geometría */}
       <section className="panel-section">
         <h2>Geometría</h2>
         <GeometryUploader onRouteLoaded={onLoaded} />
@@ -85,7 +82,6 @@ export default function PanelConfig({
         )}
       </section>
 
-      {/* Guardar línea */}
       <section className="panel-section">
         <h2>Guardar línea</h2>
         <label className="field-label">Nombre de la línea</label>
@@ -123,12 +119,12 @@ export default function PanelConfig({
         )}
       </section>
 
-      {/* Escenarios */}
       <section className="panel-section">
         <h2>Escenarios estacionales</h2>
         <SeasonalScenariosPanel
           conductorRef={conductor}
           escenarios={scenarios}
+          apiDefaults={apiDefaults}
           onChange={onScenariosChange}
         />
       </section>

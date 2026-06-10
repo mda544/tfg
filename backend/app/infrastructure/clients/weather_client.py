@@ -14,12 +14,12 @@ class ExternalAPIError(Exception):
 
 
 class ExternalAPIUnavailableError(ExternalAPIError):
-    # La API está caída o rate-limited — reintentable.
+    # La API está caída o rate-limited (reintentable).
     pass
 
 
 class ExternalAPIClientError(ExternalAPIError):
-    # Error en los parámetros enviados — no reintentable.
+    # Error en los parámetros enviados (no reintentable).
     pass
 
 
@@ -84,7 +84,7 @@ class OpenMeteoClient:
         start_date: str,
         end_date: str,
     ) -> dict:
-        # Formato fechas: "YYYY-MM-DD"
+        # Fechas formato: "YYYY-MM-DD"
         return await _request_with_retry(
             service="Open-Meteo Archive",
             url=settings.openmeteo_url,
@@ -93,7 +93,8 @@ class OpenMeteoClient:
                 "longitude": lon,
                 "start_date": start_date,
                 "end_date": end_date,
-                "hourly": "temperature_2m,wind_speed_10m,shortwave_radiation",
+                "hourly": "temperature_2m,wind_speed_10m,"
+                "wind_direction_10m,shortwave_radiation",
                 "wind_speed_unit": "ms",
                 "timezone": "UTC",
             },
@@ -110,6 +111,8 @@ class NasaPowerClient:
         end_date: str,
     ) -> dict:
         # Fechas formato: "YYYY-MM-DD" (se convierte a "YYYYMMDD" internamente)
+        # NASA POWER no tiene dirección del viento en la API básica
+        # wind_dir_predominant_deg quedará a None para la fuente NASA
         return await _request_with_retry(
             service="NASA POWER",
             url=settings.nasa_power_url,

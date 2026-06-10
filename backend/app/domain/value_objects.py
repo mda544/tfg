@@ -14,13 +14,17 @@ class GeoPoint:
 @dataclass(frozen=True)
 class WeatherInput:
     """Condiciones meteorológicas para un escenario estacional.
-    Son la entrada del cálculo IEEE 738 — persisten en rate_weather_inputs."""
+    Son la entrada del cálculo IEEE 738, persisten en rate_weather_inputs.
+    wind_dir_predominant_deg: dirección predominante del viento (media circular
+    histórica de ERA5). None cuando el usuario la especifica manualmente."""
 
     season: Season
     temp_amb_c: float
     wind_speed_ms: float
     wind_angle_deg: float
     solar_radiation_wm2: float
+    wind_dir_predominant_deg: float | None = None
+
 
 
 @dataclass(frozen=True)
@@ -38,7 +42,7 @@ class PointMeteoConditions:
 @dataclass(frozen=True)
 class SegmentRating:
     """Resultado IEEE 738 para un segmento y escenario concreto.
-    Inmutable — producido por IEEE738Calculator."""
+    Inmutable, producido por IEEE738Calculator."""
 
     ampacity: float
     temp_conductor_c: float

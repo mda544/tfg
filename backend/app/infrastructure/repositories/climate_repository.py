@@ -10,7 +10,6 @@ from app.domain.types import Season
 class ClimateRepository:
 
     def _round_coords(self, lat: float, lon: float) -> tuple[float, float]:
-        """Redondear a 0.1° — resolución de ~9-11 km (ERA5 / Open-Meteo)."""
         return round(lat, 1), round(lon, 1)
 
     async def get_climate(
@@ -38,6 +37,7 @@ class ClimateRepository:
                 wind_p10_ms=row.wind_p10_ms,
                 wind_p50_ms=row.wind_p50_ms,
                 wind_p90_ms=row.wind_p90_ms,
+                wind_dir_predominant_deg=row.wind_dir_predominant_deg,
                 radiation_p50_wm2=row.radiation_p50_wm2,
                 radiation_p90_wm2=row.radiation_p90_wm2,
                 n_hours=row.n_hours,
@@ -50,8 +50,6 @@ class ClimateRepository:
     async def create_climate(
         self, db: AsyncSession, percentiles: dict[Season, SeasonalPercentiles]
     ) -> None:
-        """Persiste los percentiles climáticos en caché.
-        Usa ON CONFLICT DO NOTHING — no sobreescribe si ya existe."""
         for season, p in percentiles.items():
             lat_r, lon_r = self._round_coords(p.lat, p.lon)
             stmt = (
@@ -67,6 +65,7 @@ class ClimateRepository:
                     wind_p10_ms=p.wind_p10_ms,
                     wind_p50_ms=p.wind_p50_ms,
                     wind_p90_ms=p.wind_p90_ms,
+                    wind_dir_predominant_deg=p.wind_dir_predominant_deg,
                     radiation_p50_wm2=p.radiation_p50_wm2,
                     radiation_p90_wm2=p.radiation_p90_wm2,
                     n_hours=p.n_hours,

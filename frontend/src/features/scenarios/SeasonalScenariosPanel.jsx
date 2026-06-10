@@ -3,6 +3,11 @@ import { SEASONS, DEFAULT_SCENARIOS, ESTACION_META } from "./scenarioDefaults";
 import { calcularAmpacidadPreview } from "./thermalPreview";
 import styles from "./SeasonalScenariosPanel.module.css";
 
+function degToCardinal(deg) {
+  const dirs = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
 const SliderField = ({
   label,
   unit,
@@ -37,6 +42,7 @@ const SliderField = ({
 export default function SeasonalScenariosPanel({
   conductorRef,
   escenarios,
+  apiDefaults,
   onChange,
 }) {
   const [activeTab, setActiveTab] = useState("verano");
@@ -50,16 +56,27 @@ export default function SeasonalScenariosPanel({
     [activeTab, escenarios, onChange],
   );
 
-  const resetSeason = () =>
+  // Restaurar estación activa a fuente actual (ERA5 o NASA)
+  const resetSeason = () => {
+    const base = apiDefaults?.[activeTab] ?? DEFAULT_SCENARIOS[activeTab];
     onChange?.({
       ...escenarios,
-      [activeTab]: { ...DEFAULT_SCENARIOS[activeTab] },
+      [activeTab]: { ...base },
     });
+  };
 
-  const resetAll = () =>
-    onChange?.(
-      Object.fromEntries(SEASONS.map((s) => [s, { ...DEFAULT_SCENARIOS[s] }])),
-    );
+  // Restaurar todas las estaciones a fuente actual
+  const resetAll = () => {
+    if (apiDefaults) {
+      onChange?.({ ...apiDefaults });
+    } else {
+      onChange?.(
+        Object.fromEntries(
+          SEASONS.map((s) => [s, { ...DEFAULT_SCENARIOS[s] }]),
+        ),
+      );
+    }
+  };
 
   const activeScenario = escenarios[activeTab];
   const ampacity = calcularAmpacidadPreview(activeScenario, conductorRef);
@@ -69,6 +86,8 @@ export default function SeasonalScenariosPanel({
       : activeScenario.viento < 3
         ? "Moderado"
         : "Fuerte";
+
+  const hasWindDir = activeScenario.wind_dir_predominant_deg != null;
 
   return (
     <div className={styles.panel}>
@@ -122,16 +141,34 @@ export default function SeasonalScenariosPanel({
         step={10}
         onChange={updateField}
       />
-      <SliderField
-        label="Ángulo viento / conductor"
-        unit="°"
-        fieldName="angulo"
-        value={activeScenario.angulo}
-        min={0}
-        max={90}
-        step={1}
-        onChange={updateField}
-      />
+
+      {hasWindDir ? (
+        <div className={styles.field}>
+          <div className={styles.fieldHeader}>
+            <label className={styles.fieldLabel}>
+              Ángulo viento / conductor
+            </label>
+          </div>
+          <p className={styles.windDirInfo}>
+            Calculado por segmento a partir de la dirección ERA5:{" "}
+            <strong>
+              {activeScenario.wind_dir_predominant_deg}° (
+              {degToCardinal(activeScenario.wind_dir_predominant_deg)})
+            </strong>
+          </p>
+        </div>
+      ) : (
+        <SliderField
+          label="Ángulo viento / conductor"
+          unit="°"
+          fieldName="angulo"
+          value={activeScenario.angulo}
+          min={0}
+          max={90}
+          step={1}
+          onChange={updateField}
+        />
+      )}
 
       <div className={styles.metrics}>
         <div className={styles.metric}>
@@ -152,7 +189,7 @@ export default function SeasonalScenariosPanel({
 
       <div className={styles.actions}>
         <button className={styles.btn} onClick={resetSeason}>
-          Restaurar defaults
+          Restaurar estación
         </button>
         <button
           className={`${styles.btn} ${styles.btnSecondary}`}
@@ -163,8 +200,10 @@ export default function SeasonalScenariosPanel({
       </div>
 
       <p className={styles.note}>
-        Defaults: P90 temperatura / P10 viento — Península Ibérica. Los valores
-        definitivos se calculan en el backend con IEEE 738 completo.
+        {apiDefaults
+          ? "Restaurar vuelve a los valores originales de la fuente climática seleccionada."
+          : "Defaults: P90 temperatura / P10 viento — Península Ibérica."}{" "}
+        Los valores definitivos se calculan en el backend con IEEE 738 completo.
       </p>
     </div>
   );

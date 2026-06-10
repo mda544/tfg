@@ -18,26 +18,32 @@ from app.infrastructure.mappers.rates_mapper import (
     weather_input_dto_to_vo,
 )
 from app.services.elevation_service import add_elevation
+from app.domain.geo import wind_angle_for_segment
 from app.api.schemas.models import RateCreateDTO, RateResultResponseDTO
 
 _calculator = IEEE738Calculator()
 
 
-async def get_by_id(db: AsyncSession, rate_id: str) -> RateResultResponseDTO:
+async def get_by_id(
+    db: AsyncSession, rate_id: str, user_id: str
+) -> RateResultResponseDTO:
     try:
-        return entity_to_dto(await rates_repo.get_by_id(db, rate_id))
+        return entity_to_dto(await rates_repo.get_by_id(db, rate_id, user_id))
     except NoResultFound:
         raise HTTPException(404, detail=f"Rate result {rate_id} not found.")
 
 
 async def get_by_study_case(
-    db: AsyncSession, case_id: str
+    db: AsyncSession, case_id: str, user_id: str
 ) -> list[RateResultResponseDTO]:
-    return [entity_to_dto(e) for e in await rates_repo.get_by_study_case(db, case_id)]
+    return [
+        entity_to_dto(e)
+        for e in await rates_repo.get_by_study_case(db, case_id, user_id)
+    ]
 
 
-async def delete(db: AsyncSession, rate_id: str) -> None:
-    if not await rates_repo.delete(db, rate_id):
+async def delete(db: AsyncSession, rate_id: str, user_id: str) -> None:
+    if not await rates_repo.delete(db, rate_id, user_id):
         raise HTTPException(404, detail=f"Rate result {rate_id} not found.")
 
 
@@ -100,10 +106,17 @@ async def create(
 
     for segment in segments:
         for season, weather in scenarios.items():
+
+            phi = wind_angle_for_segment(
+                wind_dir_predominant_deg=weather.wind_dir_predominant_deg,
+                segment_azimuth_deg=segment.azimuth_deg,
+                user_wind_angle_deg=weather.wind_angle_deg,
+            )
+
             meteo = PointMeteoConditions(
                 temp_amb_c=weather.temp_amb_c,
                 wind_speed_ms=weather.wind_speed_ms,
-                wind_angle_deg=weather.wind_angle_deg,
+                wind_angle_deg=phi,
                 solar_radiation_wm2=weather.solar_radiation_wm2,
                 elevation_m=segment.elevation_m,
             )

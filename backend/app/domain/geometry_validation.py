@@ -1,5 +1,5 @@
 from app.domain.value_objects import ValidationResult
-from app.core.utils.geo import haversine_m
+from app.domain.geo import haversine_m
 
 COVERAGE = {
     "Open-Meteo": {"lat": (-90, 90), "lon": (-180, 180)},

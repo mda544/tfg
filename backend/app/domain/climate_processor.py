@@ -1,6 +1,7 @@
 import numpy as np
 from app.domain.types import Season
 from app.domain.entities import SeasonalPercentiles
+from app.domain.geo import circular_mean
 
 SEASON_MONTHS: dict[Season, list[int]] = {
     "verano": [6, 7, 8],
@@ -23,12 +24,18 @@ class ClimateProcessor:
         radiation = np.array(hourly["shortwave_radiation"], dtype=float)
         months = np.array([int(t[5:7]) for t in times], dtype=int)
 
+        wind_dirs = np.array(
+            hourly.get("wind_direction_10m", []),
+            dtype=float,
+        )
+
         return ClimateProcessor._compute_percentiles(
             lat,
             lon,
             months,
             temps,
             winds,
+            wind_dirs,
             radiation,
             source="Open-Meteo Historical (ERA5)",
             years=years,
@@ -50,12 +57,16 @@ class ClimateProcessor:
         winds = np.array([ws10[d] for d in dates], dtype=float)
         radiation = np.array([(rad[d] * 1000.0) / 12.0 for d in dates], dtype=float)
 
+        # NASA POWER diario no incluye dirección del viento — array vacío
+        wind_dirs = np.array([], dtype=float)
+
         return ClimateProcessor._compute_percentiles(
             lat,
             lon,
             months,
             temps,
             winds,
+            wind_dirs,
             radiation,
             source="NASA POWER (MERRA-2)",
             years=years,
@@ -68,11 +79,13 @@ class ClimateProcessor:
         months: np.ndarray,
         temps: np.ndarray,
         winds: np.ndarray,
+        wind_dirs: np.ndarray,
         radiation: np.ndarray,
         source: str,
         years: str,
     ) -> dict[Season, SeasonalPercentiles]:
         results: dict[Season, SeasonalPercentiles] = {}
+        has_wind_dirs = len(wind_dirs) == len(temps)
 
         for season, season_months in SEASON_MONTHS.items():
             mask = np.isin(months, season_months)
@@ -80,6 +93,13 @@ class ClimateProcessor:
             w_season = winds[mask][~np.isnan(winds[mask])]
             r_season = radiation[mask]
             r_daytime = r_season[r_season > 5]
+
+            if has_wind_dirs:
+                wd_season = wind_dirs[mask]
+                wd_season = wd_season[~np.isnan(wd_season)]
+                wind_dir_predominant = circular_mean(wd_season)
+            else:
+                wind_dir_predominant = None
 
             results[season] = SeasonalPercentiles(
                 season=season,
@@ -91,6 +111,7 @@ class ClimateProcessor:
                 wind_p10_ms=round(float(np.percentile(w_season, 10)), 2),
                 wind_p50_ms=round(float(np.percentile(w_season, 50)), 2),
                 wind_p90_ms=round(float(np.percentile(w_season, 90)), 2),
+                wind_dir_predominant_deg=wind_dir_predominant,
                 radiation_p50_wm2=round(
                     float(np.percentile(r_daytime, 50)) if len(r_daytime) > 0 else 0.0,
                     1,

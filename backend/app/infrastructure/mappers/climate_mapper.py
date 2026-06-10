@@ -15,6 +15,7 @@ def percentiles_to_dto(p: SeasonalPercentiles) -> SeasonalPercentilesDTO:
         wind_p10_ms=p.wind_p10_ms,
         wind_p50_ms=p.wind_p50_ms,
         wind_p90_ms=p.wind_p90_ms,
+        wind_dir_predominant_deg=p.wind_dir_predominant_deg,
         radiation_p50_wm2=p.radiation_p50_wm2,
         radiation_p90_wm2=p.radiation_p90_wm2,
         n_hours=p.n_hours,
@@ -24,7 +25,10 @@ def percentiles_to_dto(p: SeasonalPercentiles) -> SeasonalPercentilesDTO:
 
 
 def build_climate_dto(
-    lat: float, lon: float, source: str, percentiles: dict[Season, SeasonalPercentiles]
+    lat: float,
+    lon: float,
+    source: str,
+    percentiles: dict[Season, SeasonalPercentiles],
 ) -> ClimatePercentilesResponseDTO:
     return ClimatePercentilesResponseDTO(
         source=source,
