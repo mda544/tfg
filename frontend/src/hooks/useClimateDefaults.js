@@ -6,7 +6,6 @@ export function useClimateDefaults() {
   const [slowLoad, setSlowLoad] = useState(false);
   const [error, setError] = useState(null);
 
-  // apiDefaults últimos valores recibidos de la API (ERA5 o NASA).
   const [apiDefaults, setApiDefaults] = useState(null);
 
   const fetchDefaults = useCallback(

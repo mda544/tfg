@@ -33,6 +33,7 @@ class Line:
     min_elevation_m: float | None = None
     max_elevation_m: float | None = None
     avg_elevation_m: float | None = None
+    elevation_source: str | None   = None
     created_at: str | None = None
     updated_at: str | None = None
 

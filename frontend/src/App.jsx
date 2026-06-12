@@ -65,7 +65,7 @@ export default function App() {
     await saveRoute({
       lineName: lineName || `Línea ${new Date().toLocaleDateString()}`,
       caseName: caseName || `Estudio ${new Date().toLocaleDateString()}`,
-      conductorId: conductor?.id, // ← v2: conductor va en StudyCase
+      conductorId: conductor?.id,
       useDem: true,
     });
   }, [lineName, caseName, conductor, saveRoute]);
@@ -73,14 +73,14 @@ export default function App() {
   const handleCalculate = useCallback(async () => {
     await calculate({
       studyCaseId,
-      scenarios, // conductor ya no va aquí — está en el StudyCase
+      scenarios,
       climateSource,
     });
   }, [studyCaseId, scenarios, climateSource, calculate]);
 
   const canSave =
     Boolean(routeData) &&
-    Boolean(conductor?.id) && // conductor seleccionado antes de guardar
+    Boolean(conductor?.id) &&
     validation?.valid !== false &&
     !saving &&
     !studyCaseId;

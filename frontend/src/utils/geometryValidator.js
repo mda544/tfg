@@ -17,7 +17,6 @@ const LIMITS = {
   MAX_SPAN_KM: 50,
 };
 
-/** Valida un array de coordenadas {lat, lon}. */
 export function validateRoute(coordinates) {
   const errors = [];
   const warnings = [];
@@ -143,7 +142,6 @@ export function validateRoute(coordinates) {
   return { valid: errors.length === 0, errors, warnings, info };
 }
 
-/** Distancia Haversine en metros entre dos puntos {lat, lon}. */
 export function haversineM(a, b) {
   const R = 6_371_000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -156,7 +154,8 @@ export function haversineM(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-/** Inserta puntos intermedios en vanos > maxSpanM. Opera con {lat, lon}. */
+/** Inserta puntos intermedios en vanos > maxSpanM. Opera con {lat, lon}.
+ *  Los puntos originales (apoyos reales) conservan elevation_m/altitud. */
 export function densifyRoute(coordinates, maxSpanM = 500) {
   if (!coordinates || coordinates.length < 2) return coordinates;
 
@@ -174,6 +173,7 @@ export function densifyRoute(coordinates, maxSpanM = 500) {
         result.push({
           lat: p1.lat + (p2.lat - p1.lat) * t,
           lon: p1.lon + (p2.lon - p1.lon) * t,
+          // sin elevation_m — punto interpolado, no apoyo real
         });
       }
     }
@@ -202,7 +202,6 @@ export function normalizeToLatLon(raw) {
   });
 }
 
-/** Convierte {lat, lon} → {lat, lng} para Leaflet. */
 export function toLngLat(coords) {
   return coords.map((c) => ({ lat: c.lat, lng: c.lon }));
 }

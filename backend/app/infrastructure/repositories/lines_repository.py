@@ -4,7 +4,11 @@ from sqlalchemy.exc import NoResultFound
 
 from app.infrastructure.db_exceptions import handle_db_exceptions
 from app.infrastructure.orm_models import LineORM
-from app.infrastructure.mappers.lines_mapper import entity_to_orm, entity_to_geometry, orm_to_entity
+from app.infrastructure.mappers.lines_mapper import (
+    entity_to_orm,
+    entity_to_geometry,
+    orm_to_entity,
+)
 from app.domain.entities import Line
 
 
@@ -52,15 +56,15 @@ class LinesRepository:
             .where(LineORM.id == line_id)
             .where(LineORM.owner_id == owner_id)
             .values(
-                name            = entity.name,
-                description     = entity.description,
-                geometry        = entity_to_geometry(entity),
-                length_km       = entity.length_km,
-                n_points        = entity.n_points,
-                bbox_lat_min    = entity.bbox_lat_min,
-                bbox_lat_max    = entity.bbox_lat_max,
-                bbox_lon_min    = entity.bbox_lon_min,
-                bbox_lon_max    = entity.bbox_lon_max,
+                name=entity.name,
+                description=entity.description,
+                geometry=entity_to_geometry(entity),
+                length_km=entity.length_km,
+                n_points=entity.n_points,
+                bbox_lat_min=entity.bbox_lat_min,
+                bbox_lat_max=entity.bbox_lat_max,
+                bbox_lon_min=entity.bbox_lon_min,
+                bbox_lon_max=entity.bbox_lon_max,
             )
         )
         return await self.get_by_id(db, line_id, owner_id)
@@ -73,22 +77,6 @@ class LinesRepository:
             .where(LineORM.owner_id == owner_id)
         )
         return result.rowcount > 0
-
-    async def enrich_with_elevation(
-        self, db: AsyncSession, line_id: str, owner_id: str,
-        min_elev: float, max_elev: float, avg_elev: float,
-    ) -> Line:
-        await db.execute(
-            update(LineORM)
-            .where(LineORM.id == line_id)
-            .where(LineORM.owner_id == owner_id)
-            .values(
-                min_elevation_m = min_elev,
-                max_elevation_m = max_elev,
-                avg_elevation_m = avg_elev,
-            )
-        )
-        return await self.get_by_id(db, line_id, owner_id)
 
 
 lines_repo = LinesRepository()

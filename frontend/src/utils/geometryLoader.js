@@ -36,14 +36,12 @@ function featureToInternalFormat(feature) {
   if (!feature?.geometry) return null;
   const { type, coordinates } = feature.geometry;
 
-  // GeoJSON puede tener [lon, lat] o [lon, lat, z]
   const toPoint = ([lon, lat, z]) => ({
     lat,
     lon,
     ...(z !== undefined && z !== null ? { elevation_m: z } : {}),
   });
 
-  // Construye puntos singulares desde features de tipo Point del mismo FeatureCollection
   const buildSingularPoints = (coords) =>
     coords.map((c, idx) => ({
       lat: c.lat,

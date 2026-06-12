@@ -87,6 +87,7 @@ class LineORM(Base):
     min_elevation_m: Mapped[float] = mapped_column(Float, nullable=True)
     max_elevation_m: Mapped[float] = mapped_column(Float, nullable=True)
     avg_elevation_m: Mapped[float] = mapped_column(Float, nullable=True)
+    elevation_source: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now

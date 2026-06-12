@@ -36,6 +36,13 @@ async def add_elevation(db: AsyncSession, coordinates: list[dict]) -> list[dict]
         return [{**c, "elevation_m": e} for c, e in zip(coordinates, elevations)]
 
     batch = await fetch_openmeteo_elevation(pending_pts)
+
+    if len(batch) != len(pending_pts):
+        print(
+            f"[DEM] Warning: expected {len(pending_pts)} results, got {len(batch)} — padding with None"
+        )
+        batch = batch + [None] * (len(pending_pts) - len(batch))
+
     still_pending: list[tuple[int, tuple[float, float]]] = []
 
     for j, (idx, elev) in enumerate(zip(pending_idx, batch)):

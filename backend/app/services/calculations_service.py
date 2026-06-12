@@ -139,7 +139,8 @@ async def create(
         weather_input_dto_to_entity(w) for w in req.weather_inputs
     ]
 
-    # 3. Enriquecer con elevación
+    # 3. Las coordenadas ya tienen elevation_m — la línea se enriqueció al guardarse
+    # (archivo con Z → elevation_source="file", dibujado a mano → elevation_source="dem")
     coordinates = [
         {
             "lat": c.lat,
@@ -148,17 +149,7 @@ async def create(
         }
         for c in line.coordinates
     ]
-    elevation_source: ElevationSource = "none"
-
-    if study_case.use_dem:
-        if line.min_elevation_m is not None:
-            elevation_source = "file"
-        else:
-            try:
-                coordinates = await add_elevation(db, coordinates)
-                elevation_source = "dem"
-            except Exception as e:
-                print(f"[DEM] Elevation enrichment failed: {e}")
+    elevation_source: ElevationSource = line.elevation_source or "none"
 
     # 4. Validar topología
     validation = validate_route(coordinates)

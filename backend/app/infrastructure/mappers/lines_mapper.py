@@ -18,26 +18,11 @@ def create_dto_to_entity(dto: LineCreateDTO) -> Line:
     )
 
 
-def entity_to_wkt(entity: Line) -> str:
-    """Genera WKT con Z si las coordenadas tienen elevation_m."""
-    has_z = any(c.elevation_m is not None for c in entity.coordinates)
-    if has_z:
-        pts = ", ".join(
-            f"{c.lon} {c.lat} {c.elevation_m or 0}" for c in entity.coordinates
-        )
-        return f"LINESTRING Z({pts})"
-    pts = ", ".join(f"{c.lon} {c.lat}" for c in entity.coordinates)
-    return f"LINESTRING({pts})"
-
-
 def entity_to_geometry(entity: Line):
     """Convierte las coordenadas a WKBElement de GeoAlchemy2 usando Shapely.
-    Acepta Z nativamente sin pasar por ST_GeomFromEWKT."""
-    has_z = any(c.elevation_m is not None for c in entity.coordinates)
-    if has_z:
-        coords = [(c.lon, c.lat, c.elevation_m or 0.0) for c in entity.coordinates]
-    else:
-        coords = [(c.lon, c.lat) for c in entity.coordinates]
+    Siempre genera LINESTRING Z — usa 0.0 cuando no hay elevación del archivo.
+    Esto garantiza compatibilidad con la columna GeometryZ(4326) de PostGIS."""
+    coords = [(c.lon, c.lat, c.elevation_m or 0.0) for c in entity.coordinates]
     return from_shape(ShapelyLineString(coords), srid=4326)
 
 
@@ -58,6 +43,7 @@ def entity_to_orm(entity: Line, owner_id: str) -> LineORM:
         min_elevation_m=elev_stats["min"] if elev_stats else None,
         max_elevation_m=elev_stats["max"] if elev_stats else None,
         avg_elevation_m=elev_stats["avg"] if elev_stats else None,
+        elevation_source=entity.elevation_source,
     )
 
 
@@ -70,7 +56,7 @@ def orm_to_entity(obj: LineORM) -> Line:
         GeoPoint(
             lat=lat,
             lon=lon,
-            elevation_m=round(z, 1) if has_z else None,
+            elevation_m=round(z, 1) if (has_z and z != 0.0) else None,
         )
         for coord in raw_coords
         for lon, lat, *zval in [coord]
@@ -91,6 +77,7 @@ def orm_to_entity(obj: LineORM) -> Line:
         min_elevation_m=obj.min_elevation_m,
         max_elevation_m=obj.max_elevation_m,
         avg_elevation_m=obj.avg_elevation_m,
+        elevation_source=obj.elevation_source,
         created_at=obj.created_at.isoformat(),
         updated_at=obj.updated_at.isoformat(),
     )
@@ -111,6 +98,7 @@ def entity_to_dto(entity: Line) -> LineResponseDTO:
         min_elevation_m=entity.min_elevation_m,
         max_elevation_m=entity.max_elevation_m,
         avg_elevation_m=entity.avg_elevation_m,
+        elevation_source=entity.elevation_source,
         geometry_geojson={"type": "LineString", "coordinates": coords},
         created_at=entity.created_at,
         updated_at=entity.updated_at,

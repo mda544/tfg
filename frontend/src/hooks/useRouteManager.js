@@ -85,14 +85,12 @@ export function useRouteManager(climateSource) {
           }),
         );
 
-        // 1. POST /lines
         const line = await createLine({
           name: opts.lineName ?? "Línea sin nombre",
           description: opts.lineDesc ?? null,
           coordinates: coordsPayload,
         });
 
-        // 2. POST /study-cases
         const sc = await createStudyCase({
           name: opts.caseName ?? `Estudio ${new Date().toLocaleDateString()}`,
           line_id: line.id,

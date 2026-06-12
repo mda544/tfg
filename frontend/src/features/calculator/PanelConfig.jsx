@@ -62,7 +62,10 @@ export default function PanelConfig({
 
       <section className="panel-section">
         <h2>Geometría</h2>
-        <GeometryUploader onRouteLoaded={onLoaded} />
+        <GeometryUploader
+          onRouteLoaded={onLoaded}
+          resetKey={routeData ? "loaded" : "empty"}
+        />
         <button className="btn-secondary" onClick={onClear}>
           Limpiar mapa
         </button>
