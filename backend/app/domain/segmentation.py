@@ -22,34 +22,39 @@ def _to_geopoint(p: Point, transformer_inv: Transformer) -> GeoPoint:
 def _interpolate_elevation_linear(
     coordinates: list[dict], mid_point: GeoPoint
 ) -> float:
-    elev_points = [c for c in coordinates if (c.get("elevation") or 0) > 0]
-
-    if not elev_points:
+    """Interpola la elevación del punto medio de un segmento entre los apoyos
+    que tienen elevation_m definida. Si ninguno tiene elevación devuelve 0.0."""
+    pts_with_elev = [
+        c
+        for c in coordinates
+        if c.get("elevation_m") is not None and c["elevation_m"] > 0
+    ]
+    if not pts_with_elev:
         return 0.0
-    if len(elev_points) == 1:
-        return round(elev_points[0]["elevation"], 1)
+    if len(pts_with_elev) == 1:
+        return float(pts_with_elev[0]["elevation_m"])
 
-    # Interpolación lineal entre el primer y último punto con elevación
-    first, last = elev_points[0], elev_points[-1]
-    total = haversine_m(
-        {"lat": first["lat"], "lon": first["lon"]},
-        {"lat": last["lat"], "lon": last["lon"]},
-    )
+    def dist(c):
+        return haversine_m(
+            {"lat": c["lat"], "lon": c["lon"]},
+            {"lat": mid_point.lat, "lon": mid_point.lon},
+        )
+
+    sorted_pts = sorted(pts_with_elev, key=dist)
+    p1, p2 = sorted_pts[0], sorted_pts[1]
+    d1 = dist(p1)
+    d2 = dist(p2)
+    total = d1 + d2
     if total == 0:
-        return round(first["elevation"], 1)
+        return float(p1["elevation_m"])
 
-    d = haversine_m(
-        {"lat": first["lat"], "lon": first["lon"]},
-        {"lat": mid_point.lat, "lon": mid_point.lon},
-    )
-    t = min(max(d / total, 0.0), 1.0)
-    return round(first["elevation"] + (last["elevation"] - first["elevation"]) * t, 1)
+    # Interpolación lineal ponderada por distancia inversa
+    elev = (p1["elevation_m"] * d2 + p2["elevation_m"] * d1) / total
+    return round(elev, 1)
 
 
 def segment_route(coordinates: list[dict], step_m: float = 500.0) -> List[Segment]:
-    """Segmenta el trazado en tramos de longitud fija.
-    Los puntos son ficticios, su elevación
-    se estima por interpolación lineal a lo largo del trazado."""
+    """Segmenta el trazado en tramos de longitud fija."""
     line_proj = _project_line(coordinates)
     total_len = line_proj.length
     n_segments = max(1, int(total_len / step_m))
@@ -91,7 +96,7 @@ def segment_by_spans(coordinates: list[dict]) -> List[Segment]:
     for i in range(len(coordinates) - 1):
         p_start = coordinates[i]
         p_end = coordinates[i + 1]
-        elev = ((p_start.get("elevation") or 0) + (p_end.get("elevation") or 0)) / 2
+        elev = ((p_start.get("elevation_m") or 0) + (p_end.get("elevation_m") or 0)) / 2
         azimuth = calcular_azimut(
             p_start["lat"], p_start["lon"], p_end["lat"], p_end["lon"]
         )

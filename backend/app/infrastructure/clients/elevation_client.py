@@ -39,7 +39,7 @@ async def fetch_openmeteo_elevation(
     return results
 
 
-# Fallback usando Open-Topo-Data SRTM30m. Semáforo para respetar el rate limit de la API
+# Fallback usando Open-Topo-Data SRTM30m.
 async def fetch_opentopodata_elevation(lat: float, lon: float) -> Optional[float]:
     async with _OPENTOPODATA_SEMAPHORE:
         try:

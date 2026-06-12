@@ -1,5 +1,5 @@
-from geoalchemy2.shape import to_shape
-from shapely.geometry import mapping
+from geoalchemy2.shape import to_shape, from_shape
+from shapely.geometry import LineString as ShapelyLineString
 
 from app.api.schemas.models import LineCreateDTO, LineResponseDTO
 from app.domain.entities import Line
@@ -11,22 +11,77 @@ def create_dto_to_entity(dto: LineCreateDTO) -> Line:
     return Line(
         name=dto.name,
         description=dto.description or "",
-        coordinates=[GeoPoint(lat=c.lat, lon=c.lon) for c in dto.coordinates],
+        coordinates=[
+            GeoPoint(lat=c.lat, lon=c.lon, elevation_m=c.elevation_m)
+            for c in dto.coordinates
+        ],
     )
 
 
 def entity_to_wkt(entity: Line) -> str:
+    """Genera WKT con Z si las coordenadas tienen elevation_m."""
+    has_z = any(c.elevation_m is not None for c in entity.coordinates)
+    if has_z:
+        pts = ", ".join(
+            f"{c.lon} {c.lat} {c.elevation_m or 0}" for c in entity.coordinates
+        )
+        return f"LINESTRING Z({pts})"
     pts = ", ".join(f"{c.lon} {c.lat}" for c in entity.coordinates)
     return f"LINESTRING({pts})"
 
 
+def entity_to_geometry(entity: Line):
+    """Convierte las coordenadas a WKBElement de GeoAlchemy2 usando Shapely.
+    Acepta Z nativamente sin pasar por ST_GeomFromEWKT."""
+    has_z = any(c.elevation_m is not None for c in entity.coordinates)
+    if has_z:
+        coords = [(c.lon, c.lat, c.elevation_m or 0.0) for c in entity.coordinates]
+    else:
+        coords = [(c.lon, c.lat) for c in entity.coordinates]
+    return from_shape(ShapelyLineString(coords), srid=4326)
+
+
+def entity_to_orm(entity: Line, owner_id: str) -> LineORM:
+    """El servicio calcula length_km, n_points y bbox antes de llamar aquí."""
+    elev_stats = _elevation_stats(entity.coordinates)
+    return LineORM(
+        owner_id=owner_id,
+        name=entity.name,
+        description=entity.description,
+        geometry=entity_to_geometry(entity),
+        length_km=entity.length_km,
+        n_points=entity.n_points,
+        bbox_lat_min=entity.bbox_lat_min,
+        bbox_lat_max=entity.bbox_lat_max,
+        bbox_lon_min=entity.bbox_lon_min,
+        bbox_lon_max=entity.bbox_lon_max,
+        min_elevation_m=elev_stats["min"] if elev_stats else None,
+        max_elevation_m=elev_stats["max"] if elev_stats else None,
+        avg_elevation_m=elev_stats["avg"] if elev_stats else None,
+    )
+
+
 def orm_to_entity(obj: LineORM) -> Line:
     shape = to_shape(obj.geometry)
+    raw_coords = list(shape.coords)
+    has_z = len(raw_coords[0]) == 3 if raw_coords else False
+
+    coordinates = [
+        GeoPoint(
+            lat=lat,
+            lon=lon,
+            elevation_m=round(z, 1) if has_z else None,
+        )
+        for coord in raw_coords
+        for lon, lat, *zval in [coord]
+        for z in (zval if zval else [None])
+    ]
+
     return Line(
         id=obj.id,
         name=obj.name,
         description=obj.description or "",
-        coordinates=[GeoPoint(lat=lat, lon=lon) for lon, lat in shape.coords],
+        coordinates=coordinates,
         length_km=obj.length_km,
         n_points=obj.n_points,
         bbox_lat_min=obj.bbox_lat_min,
@@ -60,3 +115,14 @@ def entity_to_dto(entity: Line) -> LineResponseDTO:
         created_at=entity.created_at,
         updated_at=entity.updated_at,
     )
+
+
+def _elevation_stats(coordinates) -> dict | None:
+    elevations = [c.elevation_m for c in coordinates if c.elevation_m is not None]
+    if not elevations:
+        return None
+    return {
+        "min": round(min(elevations), 1),
+        "max": round(max(elevations), 1),
+        "avg": round(sum(elevations) / len(elevations), 1),
+    }

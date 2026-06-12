@@ -29,7 +29,7 @@ export default function App() {
     studyCaseId,
     saving,
     saveError,
-
+    apiDefaults,
     loadRoute,
     resyncClimate,
     saveRoute,
@@ -65,26 +65,27 @@ export default function App() {
     await saveRoute({
       lineName: lineName || `Línea ${new Date().toLocaleDateString()}`,
       caseName: caseName || `Estudio ${new Date().toLocaleDateString()}`,
+      conductorId: conductor?.id, // ← v2: conductor va en StudyCase
       useDem: true,
     });
-  }, [lineName, caseName, saveRoute]);
+  }, [lineName, caseName, conductor, saveRoute]);
 
   const handleCalculate = useCallback(async () => {
     await calculate({
       studyCaseId,
-      conductorId: conductor.id,
-      scenarios,
+      scenarios, // conductor ya no va aquí — está en el StudyCase
       climateSource,
     });
-  }, [studyCaseId, conductor, scenarios, climateSource, calculate]);
+  }, [studyCaseId, scenarios, climateSource, calculate]);
 
   const canSave =
     Boolean(routeData) &&
+    Boolean(conductor?.id) && // conductor seleccionado antes de guardar
     validation?.valid !== false &&
     !saving &&
     !studyCaseId;
-  const canCalculate =
-    Boolean(studyCaseId) && Boolean(conductor?.id) && !calculating;
+
+  const canCalculate = Boolean(studyCaseId) && !calculating;
 
   return (
     <div className="app-container">
@@ -121,6 +122,7 @@ export default function App() {
           }}
           calculator={{
             scenarios,
+            apiDefaults,
             onScenariosChange: setScenarios,
             onCalculate: handleCalculate,
             calculating,

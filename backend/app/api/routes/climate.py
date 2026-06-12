@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_db
 from app.api.schemas.models import ClimatePercentilesResponseDTO
 from app.services import climate_service
@@ -16,9 +17,6 @@ async def get_climate_percentiles(
     year_end: int = 2023,
     db: AsyncSession = Depends(get_db),
 ):
-    try:
-        return await climate_service.get_climate_percentiles(
-            db, lat, lon, source, year_start, year_end
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return await climate_service.get_climate_percentiles(
+        db, lat, lon, source, year_start, year_end
+    )

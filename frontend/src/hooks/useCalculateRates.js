@@ -1,15 +1,17 @@
 import { useState, useCallback } from "react";
-import { calculateRates } from "../api/rates";
+import { createCalculation } from "../api/calculations";
 
 /**
- * Convierte el mapa de escenarios internos al array WeatherInputDTO
+ * Convierte los escenarios internos al array WeatherInputDTO
+ * que espera POST /study-cases/{id}/calculations.
+ * Escenarios internos: { verano: { temp, viento, angulo, radiacion, wind_dir_predominant_deg }, ... }
  */
 function buildWeatherInputs(scenarios) {
   return Object.entries(scenarios).map(([season, s]) => ({
     season,
     temp_amb_c: s.temp,
     wind_speed_ms: s.viento,
-    wind_angle_deg: s.angulo,
+    wind_angle_deg: s.angulo ?? 90,
     solar_radiation_wm2: s.radiacion,
     wind_dir_predominant_deg: s.wind_dir_predominant_deg ?? null,
   }));
@@ -20,15 +22,17 @@ export function useCalculateRates() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  /**
+   * @param {Object} params
+   * @param {string} params.studyCaseId     id del caso de estudio (ya tiene el conductor)
+   * @param {Object} params.scenarios       { verano: {temp, viento, angulo, radiacion, wind_dir_predominant_deg}, ... }
+   * @param {string} [params.climateSource] "openmeteo" | "nasa" | "manual"
+   *
+   */
   const calculate = useCallback(
-    async ({
-      studyCaseId,
-      conductorId,
-      scenarios,
-      climateSource = "manual",
-    }) => {
-      if (!studyCaseId || !conductorId) {
-        setError("Falta el caso de estudio o el conductor.");
+    async ({ studyCaseId, scenarios, climateSource = "manual" }) => {
+      if (!studyCaseId) {
+        setError("Falta el caso de estudio.");
         return null;
       }
 
@@ -39,12 +43,11 @@ export function useCalculateRates() {
       try {
         const payload = {
           study_case_id: studyCaseId,
-          conductor_id: conductorId,
           weather_inputs: buildWeatherInputs(scenarios),
           climate_source: climateSource,
         };
 
-        const data = await calculateRates(payload);
+        const data = await createCalculation(studyCaseId, payload);
         setResult(data);
         return data;
       } catch (err) {
@@ -62,5 +65,5 @@ export function useCalculateRates() {
     setError(null);
   }, []);
 
-  return { result, loading, error, calculate, reset };
+  return { calculate, result, loading, error, reset };
 }

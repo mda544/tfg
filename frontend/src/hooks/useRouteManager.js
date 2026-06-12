@@ -63,13 +63,16 @@ export function useRouteManager(climateSource) {
   const saveRoute = useCallback(
     async (opts = {}) => {
       if (!routeData) return null;
+      if (!opts.conductorId) {
+        setSaveError("Selecciona un conductor antes de guardar.");
+        return null;
+      }
       setSaving(true);
       setSaveError(null);
       try {
         const singulars = routeData.propiedades?.puntos_singulares ?? [];
         const hasRealSpans = singulars.length >= 2;
 
-        // Enviar elevation_m si viene del archivo (Excel col Z o GeoJSON con Z)
         const coordsPayload = routeData.coordinates.map(
           ({ lat, lon, elevation_m, altitud }) => ({
             lat,
@@ -93,6 +96,7 @@ export function useRouteManager(climateSource) {
         const sc = await createStudyCase({
           name: opts.caseName ?? `Estudio ${new Date().toLocaleDateString()}`,
           line_id: line.id,
+          conductor_id: opts.conductorId,
           segment_step_m: opts.segmentStep ?? 500.0,
           use_real_spans: opts.useRealSpans ?? hasRealSpans,
           use_dem: opts.useDem ?? true,

@@ -2,15 +2,11 @@ from typing import List, Optional, Dict
 from pydantic import BaseModel
 from app.domain.types import Season, ClimateSource, ElevationSource
 
-# Tipos compartidos
-
 
 class GeoPointDTO(BaseModel):
     lat: float
     lon: float
-    elevation_m: Optional[float] = None   
-
-# Autenticación
+    elevation_m: Optional[float] = None
 
 
 class UserCreateDTO(BaseModel):
@@ -28,9 +24,6 @@ class TokenDTO(BaseModel):
     token_type: str = "bearer"
     user_id: str
     username: str
-
-
-# Conductores
 
 
 class ConductorCreateDTO(BaseModel):
@@ -58,9 +51,6 @@ class ConductorResponseDTO(BaseModel):
     updated_at: str
 
 
-# Líneas
-
-
 class LineCreateDTO(BaseModel):
     name: str
     description: Optional[str] = None
@@ -85,13 +75,13 @@ class LineResponseDTO(BaseModel):
     updated_at: str
 
 
-# Casos de estudio
 
 
 class StudyCaseCreateDTO(BaseModel):
     name: str
     description: Optional[str] = None
     line_id: str
+    conductor_id: str  
     segment_step_m: float = 500.0
     use_real_spans: bool = False
     use_dem: bool = True
@@ -102,14 +92,14 @@ class StudyCaseResponseDTO(BaseModel):
     name: str
     description: Optional[str]
     line_id: str
+    conductor_id: str
+    conductor: ConductorResponseDTO  
     segment_step_m: float
     use_real_spans: bool
     use_dem: bool
     created_at: str
     updated_at: str
 
-
-# WeatherInput
 
 
 class WeatherInputDTO(BaseModel):
@@ -118,30 +108,17 @@ class WeatherInputDTO(BaseModel):
     wind_speed_ms: float
     wind_angle_deg: float = 90.0
     solar_radiation_wm2: float
-    wind_dir_predominant_deg: Optional[float] = None   
+    wind_dir_predominant_deg: Optional[float] = None
 
 
-# Rates entrada
 
 
-class RateCreateDTO(BaseModel):
-
+class CalculationCreateDTO(BaseModel):
     study_case_id: str
-    conductor_id: str
-    weather_inputs: List[WeatherInputDTO]
+    weather_inputs: List[WeatherInputDTO]  # exactamente 4, uno por estación
     climate_source: ClimateSource = "manual"
 
 
-# Rates respuesta
-
-
-class SegmentRatingDTO(BaseModel):
-    ampacity: float
-    qc_wm: float
-    qr_wm: float
-    qs_wm: float
-    r_tc_ohm_m: float
-    conv_mode: str
 
 
 class SegmentResultDTO(BaseModel):
@@ -153,30 +130,40 @@ class SegmentResultDTO(BaseModel):
     mid_point: GeoPointDTO
     start_point: GeoPointDTO
     end_point: GeoPointDTO
-    rates: Dict[Season, float]
-    ratings: Dict[Season, SegmentRatingDTO]
+    ampacity: float
     design_rate: float
+    qc_wm: float
+    qr_wm: float
+    qs_wm: float
+    r_tc_ohm_m: float
+    conv_mode: str
 
 
-class RateResultResponseDTO(BaseModel):
+
+
+class SeasonResultDTO(BaseModel):
     id: str
-    study_case_id: str
-    conductor: ConductorResponseDTO
-    weather_inputs: List[WeatherInputDTO]
-    climate_source: str
+    season: Season
+    weather_input: WeatherInputDTO
+    design_rate: float
     elevation_source: ElevationSource
     n_segments: int
-    rate_summer: float
-    rate_autumn: float
-    rate_winter: float
-    rate_spring: float
-    design_rate: float
     segments: List[SegmentResultDTO]
+
+
+
+
+class CalculationResponseDTO(BaseModel):
+    id: str
+    study_case_id: str
+    climate_source: str
+    design_rate: float  
+    n_segments: int
     warnings: List[str]
+    season_results: List[SeasonResultDTO]
     created_at: Optional[str] = None
 
 
-# Clima
 
 
 class SeasonalPercentilesDTO(BaseModel):
@@ -198,9 +185,6 @@ class ClimatePercentilesResponseDTO(BaseModel):
     source: str
     point: GeoPointDTO
     percentiles: Dict[Season, SeasonalPercentilesDTO]
-
-
-# Elevación
 
 
 class ElevationResponseDTO(BaseModel):

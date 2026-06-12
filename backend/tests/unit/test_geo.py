@@ -1,18 +1,3 @@
-"""
-Pruebas unitarias de app/core/utils/geo.py.
-
-Funciones cubiertas:
-  - haversine_m              — distancia entre puntos geográficos
-  - calcular_azimut          — orientación respecto al Norte
-  - circular_mean            — media circular para ángulos
-  - wind_angle_for_segment   — ángulo efectivo viento-conductor por segmento
-
-Técnica aplicada: caja negra con partición equivalente.
-Para cada función se identifican clases de equivalencia (entradas
-válidas representativas, valores límite y casos degenerados) y se
-crea un test por clase.
-"""
-
 import pytest
 import numpy as np
 from app.domain.geo import (

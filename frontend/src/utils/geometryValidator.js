@@ -183,18 +183,23 @@ export function densifyRoute(coordinates, maxSpanM = 500) {
   return result;
 }
 
-/** Normaliza coordenadas Leaflet (que usan `lng`) al formato interno {lat, lon}. */
+/** Normaliza coordenadas Leaflet (que usan `lng`) al formato interno {lat, lon}.
+ *  Preserva elevation_m y altitud si están presentes. */
 export function normalizeToLatLon(raw) {
   const flat = Array.isArray(raw[0]) ? raw[0] : raw;
-  return flat.map((p) => ({
-    lat: typeof p.lat === "number" ? p.lat : p[0],
-    lon:
+  return flat.map((p) => {
+    const lat = typeof p.lat === "number" ? p.lat : p[0];
+    const lon =
       typeof p.lng === "number"
         ? p.lng
         : typeof p.lon === "number"
           ? p.lon
-          : p[1],
-  }));
+          : p[1];
+    const result = { lat, lon };
+    if (p.elevation_m != null) result.elevation_m = p.elevation_m;
+    if (p.altitud != null) result.altitud = p.altitud;
+    return result;
+  });
 }
 
 /** Convierte {lat, lon} → {lat, lng} para Leaflet. */

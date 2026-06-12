@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
-from fastapi import HTTPException
 
+from app.domain.exceptions import EntityNotFoundError
 from app.infrastructure.repositories.conductors_repository import conductors_repo
 from app.infrastructure.mappers.conductors_mapper import (
     create_dto_to_entity,
@@ -20,7 +20,7 @@ async def get_by_id(
     try:
         return entity_to_dto(await conductors_repo.get_by_id(db, conductor_id, user_id))
     except NoResultFound:
-        raise HTTPException(404, detail=f"Conductor {conductor_id} not found.")
+        raise EntityNotFoundError(f"Conductor {conductor_id} not found.")
 
 
 async def create(
@@ -41,9 +41,9 @@ async def update(
             )
         )
     except NoResultFound:
-        raise HTTPException(404, detail=f"Conductor {conductor_id} not found.")
+        raise EntityNotFoundError(f"Conductor {conductor_id} not found.")
 
 
 async def delete(db: AsyncSession, conductor_id: str, user_id: str) -> None:
     if not await conductors_repo.delete(db, conductor_id, user_id):
-        raise HTTPException(404, detail=f"Conductor {conductor_id} not found.")
+        raise EntityNotFoundError(f"Conductor {conductor_id} not found.")
