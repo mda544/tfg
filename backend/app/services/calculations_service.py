@@ -118,13 +118,11 @@ async def create(
     user_id: str,
 ) -> CalculationResponseDTO:
 
-    # 1. Resolver dependencias
     try:
         study_case = await study_cases_repo.get_by_id(db, req.study_case_id, user_id)
     except NoResultFound:
         raise EntityNotFoundError(f"Study case {req.study_case_id} not found.")
 
-    # El conductor viene embebido en el StudyCase
     conductor = study_case.conductor
     if conductor is None:
         raise EntityNotFoundError(f"Conductor {study_case.conductor_id} not found.")
@@ -134,13 +132,10 @@ async def create(
     except NoResultFound:
         raise EntityNotFoundError(f"Line {study_case.line_id} not found.")
 
-    # 2. Convertir DTOs a entidades
     weather_inputs: list[WeatherInput] = [
         weather_input_dto_to_entity(w) for w in req.weather_inputs
     ]
 
-    # 3. Las coordenadas ya tienen elevation_m — la línea se enriqueció al guardarse
-    # (archivo con Z → elevation_source="file", dibujado a mano → elevation_source="dem")
     coordinates = [
         {
             "lat": c.lat,
@@ -151,7 +146,7 @@ async def create(
     ]
     elevation_source: ElevationSource = line.elevation_source or "none"
 
-    # 4. Validar topología
+    # Validar topología
     validation = validate_route(coordinates)
     if not validation.valid:
         raise ValidationError(
@@ -160,10 +155,10 @@ async def create(
             warnings=list(validation.warnings),
         )
 
-    # 5. Segmentar
+    # Segmentar
     if study_case.use_real_spans and len(coordinates) >= 2:
         seg_templates = segment_by_spans(coordinates)
-    elif study_case.segment_step_m > 0:
+    elif study_case.segment_step_m and study_case.segment_step_m > 0:
         seg_templates = segment_route(coordinates, study_case.segment_step_m)
     else:
         raise CalculationError("Parámetros de segmentación no válidos.")
@@ -171,7 +166,7 @@ async def create(
     if not seg_templates:
         raise CalculationError("No se pudieron generar segmentos.")
 
-    # 6. Calcular
+    # Calcular
     calculation_id = str(uuid.uuid4())
     season_results = _perform_thermal_calculations(
         seg_templates=seg_templates,
@@ -181,7 +176,7 @@ async def create(
         elevation_source=elevation_source,
     )
 
-    # 7. Persistir
+    # Persistir
     calculation = build_calculation_entity(
         study_case_id=req.study_case_id,
         climate_source=req.climate_source,

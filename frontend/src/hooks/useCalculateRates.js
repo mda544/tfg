@@ -3,6 +3,8 @@ import { createCalculation } from "../api/calculations";
 
 /**
  * Convierte los escenarios internos al array WeatherInputDTO
+ * que espera POST /study-cases/{id}/calculations.
+ * Escenarios internos: { verano: { temp, viento, angulo, radiacion, wind_dir_predominant_deg }, ... }
  */
 function buildWeatherInputs(scenarios) {
   return Object.entries(scenarios).map(([season, s]) => ({
@@ -63,5 +65,5 @@ export function useCalculateRates() {
     setError(null);
   }, []);
 
-  return { calculate, result, loading, error, reset };
+  return { calculate, result, setResult, loading, error, reset };
 }

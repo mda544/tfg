@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum as SAEnum,
     UniqueConstraint,
     ARRAY,
+    JSON,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -88,6 +89,7 @@ class LineORM(Base):
     max_elevation_m: Mapped[float] = mapped_column(Float, nullable=True)
     avg_elevation_m: Mapped[float] = mapped_column(Float, nullable=True)
     elevation_source: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    support_metadata: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now
@@ -98,7 +100,6 @@ class LineORM(Base):
 
 
 class StudyCaseORM(Base):
-    """Define el sistema a analizar: línea + conductor + parámetros de segmentación."""
 
     __tablename__ = "study_cases"
 
@@ -112,7 +113,7 @@ class StudyCaseORM(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    segment_step_m: Mapped[float] = mapped_column(Float, default=500.0)
+    segment_step_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     use_real_spans: Mapped[bool] = mapped_column(Boolean, default=False)
     use_dem: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -131,8 +132,7 @@ class StudyCaseORM(Base):
 
 
 class CalculationORM(Base):
-    """Una ejecución del cálculo sobre un StudyCase.
-    Tiene exactamente 4 SeasonResultORM, uno por estación."""
+    """Una ejecución del cálculo sobre un StudyCase."""
 
     __tablename__ = "calculations"
 
@@ -157,9 +157,7 @@ class CalculationORM(Base):
 
 
 class SeasonResultORM(Base):
-    """Resultado del cálculo para una estación concreta.
-    Agrupa el weather_input del usuario y los segmentos calculados.
-    Un Calculation tiene exactamente 4 SeasonResult."""
+    """Resultado del cálculo para una estación concreta."""
 
     __tablename__ = "season_results"
     __table_args__ = (

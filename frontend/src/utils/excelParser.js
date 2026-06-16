@@ -190,7 +190,7 @@ export async function parseLineExcel(file, utmOptions = {}) {
       sistema_original: detectedSystem,
       zona_utm: detectedSystem === "utm" ? utmZone : null,
       n_apoyos: cleanCoordinates.length,
-      puntos_singulares: singularPoints,
+      support_metadata: singularPoints,
     },
     advertencias: errors,
   };

@@ -55,7 +55,6 @@ async def create(
 
     entity = create_dto_to_entity(data)
 
-    # Enriquecer con DEM si no hay elevación del archivo
     has_file_elevation = any(c.elevation_m is not None for c in entity.coordinates)
     if has_file_elevation:
         entity.elevation_source = "file"

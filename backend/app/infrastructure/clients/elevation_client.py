@@ -7,11 +7,9 @@ from app.infrastructure.clients.weather_client import (
 )
 from app.core.config import settings
 
-# Valor 1 = solo una petición simultánea + 1.1s de espera entre llamadas.
 _OPENTOPODATA_SEMAPHORE = asyncio.Semaphore(1)
 
 
-# Obtiene elevaciones en batch desde Open-Meteo Elevation API. None para puntos fallidos
 async def fetch_openmeteo_elevation(
     points: list[tuple[float, float]],
 ) -> list[Optional[float]]:

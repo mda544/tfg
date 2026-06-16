@@ -43,7 +43,7 @@ class LinesRepository:
     async def create(self, db: AsyncSession, owner_id: str, entity: Line) -> Line:
         obj = entity_to_orm(entity, owner_id)
         db.add(obj)
-        await db.flush()
+        await db.commit()
         await db.refresh(obj)
         return orm_to_entity(obj)
 

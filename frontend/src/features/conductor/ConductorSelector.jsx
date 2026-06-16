@@ -55,6 +55,59 @@ export default function ConductorSelector({ selected, onChange }) {
     }
   };
 
+  // Definición estructurada de los campos del formulario con sus límites físicos
+  const formFields = [
+    { key: "name", label: "Nombre", type: "text" },
+    {
+      key: "diameter_mm",
+      label: "Diámetro (mm)",
+      type: "number",
+      min: 1,
+      max: 100,
+      step: "any",
+    },
+    {
+      key: "r_ac_75_ohm_km",
+      label: "R AC 75°C (Ω/km)",
+      type: "number",
+      min: 0.001,
+      max: 10,
+      step: "any",
+    },
+    {
+      key: "r_ac_25_ohm_km",
+      label: "R AC 25°C (Ω/km)",
+      type: "number",
+      min: 0.001,
+      max: 10,
+      step: "any",
+    },
+    {
+      key: "emissivity",
+      label: "Emisividad",
+      type: "number",
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    },
+    {
+      key: "absorptivity",
+      label: "Absortividad",
+      type: "number",
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    },
+    {
+      key: "max_temp_c",
+      label: "Temp. máx (°C)",
+      type: "number",
+      min: 10,
+      max: 300,
+      step: "any",
+    },
+  ];
+
   return (
     <div className={styles.wrap}>
       <div className={styles.row}>
@@ -103,28 +156,24 @@ export default function ConductorSelector({ selected, onChange }) {
       {showForm && (
         <form className={styles.form} onSubmit={handleCreate}>
           <p className={styles.formTitle}>Nuevo conductor</p>
-          {[
-            ["name", "Nombre", "text"],
-            ["diameter_mm", "Diámetro (mm)", "number"],
-            ["r_ac_75_ohm_km", "R AC 75°C (Ω/km)", "number"],
-            ["r_ac_25_ohm_km", "R AC 25°C (Ω/km)", "number"],
-            ["emissivity", "Emisividad", "number"],
-            ["absorptivity", "Absortividad", "number"],
-            ["max_temp_c", "Temp. máx (°C)", "number"],
-          ].map(([key, label, type]) => (
+
+          {formFields.map(({ key, label, type, min, max, step }) => (
             <label key={key} className={styles.formField}>
               <span>{label}</span>
               <input
                 type={type}
                 required
                 value={formData[key]}
-                step={type === "number" ? "any" : undefined}
+                min={min}
+                max={max}
+                step={step}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, [key]: e.target.value }))
                 }
               />
             </label>
           ))}
+
           {formError && <p className={styles.formError}>{formError}</p>}
           <button className={styles.saveBtn} type="submit" disabled={saving}>
             {saving ? "Guardando…" : "Guardar conductor"}

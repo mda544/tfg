@@ -111,8 +111,7 @@ class NasaPowerClient:
         end_date: str,
     ) -> dict:
         # Fechas formato: "YYYY-MM-DD" (se convierte a "YYYYMMDD" internamente)
-        # NASA POWER no tiene dirección del viento en la API básica
-        # wind_dir_predominant_deg quedará a None para la fuente NASA
+        # wind_dir_predominant_deg quedará a None para NASA, no existe
         return await _request_with_retry(
             service="NASA POWER",
             url=settings.nasa_power_url,

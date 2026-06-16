@@ -3,6 +3,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.core.limiter import limiter
+
 from app.api.routes import (
     auth,
     conductors,
@@ -21,7 +25,7 @@ from app.domain.exceptions import (
 )
 from app.core.config import settings
 from app.infrastructure.database import engine, Base
-from app.infrastructure import orm_models  
+from app.infrastructure import orm_models
 from app.infrastructure.clients.http_client import startup, shutdown
 from app.seed import seed_default_conductors
 
@@ -44,6 +48,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -53,7 +60,7 @@ app.add_middleware(
 )
 
 
-# Traducción de excepciones de dominio -> HTTP 
+# Traducción de excepciones de dominio -> HTTP
 
 
 @app.exception_handler(EntityNotFoundError)

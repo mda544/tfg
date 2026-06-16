@@ -22,7 +22,7 @@ def handle_db_exceptions(func):
                         "La sesión ha expirado o el usuario no existe. Vuelve a iniciar sesión."
                     )
                 raise EntityNotFoundError(
-                    "Referencia no encontrada — comprueba que los IDs son correctos."
+                    "Referencia no encontrada. Comprueba que los IDs son correctos."
                 )
             if "unique" in detail or "duplicate" in detail:
                 raise EntityConflictError("El registro ya existe.")

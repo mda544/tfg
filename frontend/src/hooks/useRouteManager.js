@@ -52,6 +52,18 @@ export function useRouteManager(climateSource) {
     [_process, _syncClimate, resetDefaults],
   );
 
+  const loadSavedRoute = useCallback(
+    async (feature) => {
+      setRouteData(feature);
+      setValidation(validateRoute(feature.coordinates));
+      resetDefaults();
+      mapRef.current?.drawRoute(feature);
+      const scenarios = await _syncClimate(feature.coordinates);
+      return { feature, scenarios };
+    },
+    [_syncClimate, resetDefaults],
+  );
+
   const resyncClimate = useCallback(
     (source) => {
       if (!routeData?.coordinates) return Promise.resolve(null);
@@ -70,7 +82,7 @@ export function useRouteManager(climateSource) {
       setSaving(true);
       setSaveError(null);
       try {
-        const singulars = routeData.propiedades?.puntos_singulares ?? [];
+        const singulars = routeData.propiedades?.support_metadata ?? [];
         const hasRealSpans = singulars.length >= 2;
 
         const coordsPayload = routeData.coordinates.map(
@@ -89,14 +101,17 @@ export function useRouteManager(climateSource) {
           name: opts.lineName ?? "Línea sin nombre",
           description: opts.lineDesc ?? null,
           coordinates: coordsPayload,
+          support_metadata: singulars.length > 0 ? singulars : null,
         });
+
+        const useRealSpans = opts.useRealSpans ?? hasRealSpans;
 
         const sc = await createStudyCase({
           name: opts.caseName ?? `Estudio ${new Date().toLocaleDateString()}`,
           line_id: line.id,
           conductor_id: opts.conductorId,
-          segment_step_m: opts.segmentStep ?? 500.0,
-          use_real_spans: opts.useRealSpans ?? hasRealSpans,
+          segment_step_m: useRealSpans ? null : (opts.segmentStep ?? 500.0),
+          use_real_spans: useRealSpans,
           use_dem: opts.useDem ?? true,
         });
 
@@ -132,8 +147,10 @@ export function useRouteManager(climateSource) {
     saveError,
     apiDefaults,
     loadRoute,
+    loadSavedRoute,
     resyncClimate,
     saveRoute,
     clear,
+    setStudyCaseId,
   };
 }

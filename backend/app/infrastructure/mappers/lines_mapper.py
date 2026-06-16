@@ -15,19 +15,20 @@ def create_dto_to_entity(dto: LineCreateDTO) -> Line:
             GeoPoint(lat=c.lat, lon=c.lon, elevation_m=c.elevation_m)
             for c in dto.coordinates
         ],
+        support_metadata=(
+            [p.model_dump() for p in dto.support_metadata]
+            if dto.support_metadata
+            else None
+        ),
     )
 
 
 def entity_to_geometry(entity: Line):
-    """Convierte las coordenadas a WKBElement de GeoAlchemy2 usando Shapely.
-    Siempre genera LINESTRING Z — usa 0.0 cuando no hay elevación del archivo.
-    Esto garantiza compatibilidad con la columna GeometryZ(4326) de PostGIS."""
     coords = [(c.lon, c.lat, c.elevation_m or 0.0) for c in entity.coordinates]
     return from_shape(ShapelyLineString(coords), srid=4326)
 
 
 def entity_to_orm(entity: Line, owner_id: str) -> LineORM:
-    """El servicio calcula length_km, n_points y bbox antes de llamar aquí."""
     elev_stats = _elevation_stats(entity.coordinates)
     return LineORM(
         owner_id=owner_id,
@@ -44,6 +45,7 @@ def entity_to_orm(entity: Line, owner_id: str) -> LineORM:
         max_elevation_m=elev_stats["max"] if elev_stats else None,
         avg_elevation_m=elev_stats["avg"] if elev_stats else None,
         elevation_source=entity.elevation_source,
+        support_metadata=entity.support_metadata,
     )
 
 
@@ -78,6 +80,7 @@ def orm_to_entity(obj: LineORM) -> Line:
         max_elevation_m=obj.max_elevation_m,
         avg_elevation_m=obj.avg_elevation_m,
         elevation_source=obj.elevation_source,
+        support_metadata=obj.support_metadata,
         created_at=obj.created_at.isoformat(),
         updated_at=obj.updated_at.isoformat(),
     )
@@ -99,6 +102,7 @@ def entity_to_dto(entity: Line) -> LineResponseDTO:
         max_elevation_m=entity.max_elevation_m,
         avg_elevation_m=entity.avg_elevation_m,
         elevation_source=entity.elevation_source,
+        support_metadata=entity.support_metadata,
         geometry_geojson={"type": "LineString", "coordinates": coords},
         created_at=entity.created_at,
         updated_at=entity.updated_at,

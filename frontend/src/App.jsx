@@ -1,7 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "./auth/useAuth";
 import { useRouteManager } from "./hooks/useRouteManager";
 import { useCalculateRates } from "./hooks/useCalculateRates";
+import { useSavedStudyCases } from "./hooks/useSavedStudyCases";
+import { useSavedCalculations } from "./hooks/useSavedCalculations";
 import { DEFAULT_CONDUCTORS } from "./features/conductor/conductorData";
 import { DEFAULT_SCENARIOS } from "./features/scenarios/scenarioDefaults";
 
@@ -19,6 +21,9 @@ export default function App() {
   const [climateSource, setClimateSource] = useState("openmeteo");
   const [lineName, setLineName] = useState("");
   const [caseName, setCaseName] = useState("");
+  const [segmentStep, setSegmentStep] = useState(500);
+  const [activeSavedLineId, setActiveSavedLineId] = useState(null);
+  const [selectedCalcId, setSelectedCalcId] = useState(null);
 
   const {
     mapRef,
@@ -31,52 +36,169 @@ export default function App() {
     saveError,
     apiDefaults,
     loadRoute,
+    loadSavedRoute,
     resyncClimate,
     saveRoute,
     clear,
+    setStudyCaseId,
   } = useRouteManager(climateSource);
+
+  const {
+    studyCases,
+    loading: loadingStudyCases,
+    refresh: refreshStudyCases,
+    reset: resetStudyCases,
+  } = useSavedStudyCases();
+
+  const {
+    calculations,
+    loading: loadingCalculations,
+    refresh: refreshCalculations,
+    reset: resetCalculations,
+  } = useSavedCalculations();
 
   const {
     calculate,
     result,
+    setResult,
     loading: calculating,
     error: calcError,
   } = useCalculateRates();
 
+  // Handlers
+
   const handleRouteLoaded = useCallback(
     async (rawFeature) => {
-      const { scenarios: newScenarios } = await loadRoute(rawFeature);
-      if (newScenarios) setScenarios(newScenarios);
+      setActiveSavedLineId(null);
+      resetStudyCases();
+      resetCalculations();
+      setSelectedCalcId(null);
+      const { scenarios: s } = await loadRoute(rawFeature);
+      if (s) setScenarios(s);
     },
-    [loadRoute],
+    [loadRoute, resetStudyCases, resetCalculations],
   );
+
+  const handleSavedLineLoaded = useCallback(
+    async (feature) => {
+      const lineId = feature._savedLine?.id ?? null;
+      setActiveSavedLineId(lineId);
+      resetCalculations();
+      setSelectedCalcId(null);
+      const { scenarios: s } = await loadSavedRoute(feature, null);
+      if (s) setScenarios(s);
+      if (lineId) await refreshStudyCases(lineId);
+    },
+    [loadSavedRoute, refreshStudyCases, resetCalculations],
+  );
+
+  const handleStudyCaseSelected = useCallback(
+    async (sc) => {
+      setStudyCaseId(sc.id);
+      setSelectedCalcId(null);
+      if (sc.conductor) setConductor(sc.conductor);
+      await refreshCalculations(sc.id);
+    },
+    [setStudyCaseId, refreshCalculations],
+  );
+
+  const handleCreateNewStudyCase = useCallback(() => {
+    setStudyCaseId(null);
+    resetCalculations();
+    setSelectedCalcId(null);
+  }, [setStudyCaseId, resetCalculations]);
+
+  const handleCalculationSelected = useCallback(
+    (calc) => {
+      setSelectedCalcId(calc.id);
+      setResult(calc);
+      if (calc.season_results?.length) {
+        const loadedScenarios = Object.fromEntries(
+          calc.season_results.map((sr) => [
+            sr.season,
+            {
+              temp: sr.weather_input?.temp_amb_c,
+              viento: sr.weather_input?.wind_speed_ms,
+              radiacion: sr.weather_input?.solar_radiation_wm2,
+              angulo: sr.weather_input?.wind_angle_deg ?? 90,
+              wind_dir_predominant_deg:
+                sr.weather_input?.wind_dir_predominant_deg ?? null,
+            },
+          ]),
+        );
+        setScenarios(loadedScenarios);
+      }
+    },
+    [setResult],
+  );
+
+  const handleNewCalculation = useCallback(() => {
+    setSelectedCalcId(null);
+    setResult(null);
+    if (apiDefaults) setScenarios(apiDefaults);
+    if (routeData) mapRef.current?.drawRoute(routeData);
+  }, [setResult, apiDefaults, routeData, mapRef]);
 
   const handleClimateSourceChange = useCallback(
     async (e) => {
       const source = e.target.value;
       setClimateSource(source);
-      const newScenarios = await resyncClimate(source);
-      if (newScenarios) setScenarios(newScenarios);
+      const s = await resyncClimate(source);
+      if (s) setScenarios(s);
     },
     [resyncClimate],
   );
 
   const handleSave = useCallback(async () => {
-    await saveRoute({
+    const newId = await saveRoute({
       lineName: lineName || `Línea ${new Date().toLocaleDateString()}`,
       caseName: caseName || `Estudio ${new Date().toLocaleDateString()}`,
       conductorId: conductor?.id,
+      segmentStep: segmentStep,
       useDem: true,
     });
-  }, [lineName, caseName, conductor, saveRoute]);
+    if (newId && activeSavedLineId) {
+      await refreshStudyCases(activeSavedLineId);
+    }
+  }, [
+    lineName,
+    caseName,
+    conductor,
+    segmentStep,
+    saveRoute,
+    activeSavedLineId,
+    refreshStudyCases,
+  ]);
 
   const handleCalculate = useCallback(async () => {
-    await calculate({
-      studyCaseId,
-      scenarios,
-      climateSource,
-    });
-  }, [studyCaseId, scenarios, climateSource, calculate]);
+    const calc = await calculate({ studyCaseId, scenarios, climateSource });
+    if (calc) {
+      setSelectedCalcId(calc.id);
+      await refreshCalculations(studyCaseId);
+    }
+  }, [studyCaseId, scenarios, climateSource, calculate, refreshCalculations]);
+
+  const handleClear = useCallback(() => {
+    clear();
+    setActiveSavedLineId(null);
+    resetStudyCases();
+    resetCalculations();
+    setSelectedCalcId(null);
+    setResult(null);
+  }, [clear, resetStudyCases, resetCalculations, setResult]);
+
+  useEffect(() => {
+    if (!result?.season_results?.length) return;
+    const verano =
+      result.season_results.find((sr) => sr.season === "verano") ??
+      result.season_results[0];
+    if (verano?.segments?.length) {
+      const singulars = routeData?.propiedades?.support_metadata ?? [];
+      mapRef.current?.drawSegments(verano.segments, singulars);
+    }
+  }, [result, mapRef, routeData]);
+
+  // Derived state
 
   const canSave =
     Boolean(routeData) &&
@@ -85,7 +207,13 @@ export default function App() {
     !saving &&
     !studyCaseId;
 
-  const canCalculate = Boolean(studyCaseId) && !calculating;
+  const canCalculate =
+    Boolean(studyCaseId) && !calculating && selectedCalcId === null;
+
+  const showStudyCaseSelector =
+    Boolean(activeSavedLineId) && Boolean(routeData);
+  const showCalculationSelector =
+    Boolean(studyCaseId) && Boolean(activeSavedLineId);
 
   return (
     <div className="app-container">
@@ -99,13 +227,34 @@ export default function App() {
             loadingClimate,
             climateSlowLoad,
             onLoaded: handleRouteLoaded,
-            onClear: clear,
+            onSavedLineLoaded: handleSavedLineLoaded,
+            onClear: handleClear,
+          }}
+          studyCaseSelector={{
+            show: showStudyCaseSelector,
+            studyCases,
+            loading: loadingStudyCases,
+            selectedId: studyCaseId,
+            onSelect: handleStudyCaseSelected,
+            onCreate: handleCreateNewStudyCase,
+            disabled: calculating,
+          }}
+          calculationSelector={{
+            show: showCalculationSelector,
+            calculations,
+            loading: loadingCalculations,
+            selectedId: selectedCalcId,
+            onSelect: handleCalculationSelected,
+            onNew: handleNewCalculation,
+            disabled: calculating,
           }}
           save={{
             lineName,
             caseName,
             onLineNameChange: setLineName,
             onCaseNameChange: setCaseName,
+            segmentStep,
+            onSegmentStepChange: setSegmentStep,
             onSave: handleSave,
             saving,
             error: saveError,
@@ -135,7 +284,7 @@ export default function App() {
           <RouteMap
             ref={mapRef}
             onRouteDrawn={handleRouteLoaded}
-            onRouteCleared={clear}
+            onRouteCleared={handleClear}
           />
           {result && <RatesResultsPanel result={result} />}
         </main>

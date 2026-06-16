@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from app.domain.types import Season, ClimateSource, ElevationSource
 
 
@@ -51,10 +51,33 @@ class ConductorResponseDTO(BaseModel):
     updated_at: str
 
 
+class PuntoSingularDTO(BaseModel):
+
+    lat: float
+    lon: float
+    station: Optional[str] = None
+    comment: Optional[str] = None
+    altitud: Optional[float] = None
+    number: Optional[str] = None
+    lineAngle: Optional[float] = None
+    z: Optional[float] = None
+    elevation_m: Optional[float] = None 
+
+    @field_validator("station", "number", mode="before")
+    @classmethod
+    def coerce_to_str(cls, v):
+        if v is None:
+            return None
+        return str(v)
+
+    model_config = {"extra": "ignore"}
+
+
 class LineCreateDTO(BaseModel):
     name: str
     description: Optional[str] = None
     coordinates: List[GeoPointDTO]
+    support_metadata: Optional[List[PuntoSingularDTO]] = None
 
 
 class LineResponseDTO(BaseModel):
@@ -70,19 +93,18 @@ class LineResponseDTO(BaseModel):
     min_elevation_m: Optional[float]
     max_elevation_m: Optional[float]
     avg_elevation_m: Optional[float]
+    support_metadata: Optional[List[PuntoSingularDTO]] = None
     geometry_geojson: dict
     created_at: str
     updated_at: str
-
-
 
 
 class StudyCaseCreateDTO(BaseModel):
     name: str
     description: Optional[str] = None
     line_id: str
-    conductor_id: str  
-    segment_step_m: float = 500.0
+    conductor_id: str
+    segment_step_m: Optional[float]
     use_real_spans: bool = False
     use_dem: bool = True
 
@@ -93,13 +115,12 @@ class StudyCaseResponseDTO(BaseModel):
     description: Optional[str]
     line_id: str
     conductor_id: str
-    conductor: ConductorResponseDTO  
-    segment_step_m: float
+    conductor: ConductorResponseDTO
+    segment_step_m: Optional[float]
     use_real_spans: bool
     use_dem: bool
     created_at: str
     updated_at: str
-
 
 
 class WeatherInputDTO(BaseModel):
@@ -111,14 +132,10 @@ class WeatherInputDTO(BaseModel):
     wind_dir_predominant_deg: Optional[float] = None
 
 
-
-
 class CalculationCreateDTO(BaseModel):
     study_case_id: str
-    weather_inputs: List[WeatherInputDTO]  # exactamente 4, uno por estación
+    weather_inputs: List[WeatherInputDTO]  
     climate_source: ClimateSource = "manual"
-
-
 
 
 class SegmentResultDTO(BaseModel):
@@ -139,8 +156,6 @@ class SegmentResultDTO(BaseModel):
     conv_mode: str
 
 
-
-
 class SeasonResultDTO(BaseModel):
     id: str
     season: Season
@@ -151,19 +166,15 @@ class SeasonResultDTO(BaseModel):
     segments: List[SegmentResultDTO]
 
 
-
-
 class CalculationResponseDTO(BaseModel):
     id: str
     study_case_id: str
     climate_source: str
-    design_rate: float  
+    design_rate: float
     n_segments: int
     warnings: List[str]
     season_results: List[SeasonResultDTO]
     created_at: Optional[str] = None
-
-
 
 
 class SeasonalPercentilesDTO(BaseModel):

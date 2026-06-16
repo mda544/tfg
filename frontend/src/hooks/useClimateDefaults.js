@@ -16,7 +16,7 @@ export function useClimateDefaults() {
       setSlowLoad(false);
       setError(null);
 
-      const timer = setTimeout(() => setSlowLoad(true), 300);
+      const timer = setTimeout(() => setSlowLoad(true), 1500); // 1.5s — la caché local es rápida
 
       try {
         const mid = coordinates[Math.floor(coordinates.length / 2)];

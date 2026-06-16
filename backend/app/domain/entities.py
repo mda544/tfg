@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from app.domain.types import Season, ConvMode
+from app.domain.types import Season
 from app.domain.value_objects import GeoPoint, SegmentRating
 
 
@@ -33,7 +33,8 @@ class Line:
     min_elevation_m: float | None = None
     max_elevation_m: float | None = None
     avg_elevation_m: float | None = None
-    elevation_source: str | None   = None
+    elevation_source: str | None = None
+    support_metadata: list | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -49,7 +50,7 @@ class StudyCase:
     conductor_id: str
     id: str | None = None
     description: str = ""
-    segment_step_m: float = 500.0
+    segment_step_m: float | None = None
     use_real_spans: bool = False
     use_dem: bool = True
     conductor: "Conductor | None" = None
