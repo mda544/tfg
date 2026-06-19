@@ -1,0 +1,44 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: #1e293b;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.select:hover:not(:disabled) {
+  border-color: #2e75b6;
+}
+
+.select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ficha {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #1e3a5f;
+}
+
+.info {
+  font-size: 12px;
+  color: #64748b;
+  margin: 4px 0;
+}

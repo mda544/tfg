@@ -9,22 +9,7 @@ class GeoPoint:
 
     lat: float
     lon: float
-
-
-@dataclass(frozen=True)
-class WeatherInput:
-    """Condiciones meteorológicas para un escenario estacional.
-    Son la entrada del cálculo IEEE 738, persisten en rate_weather_inputs.
-    wind_dir_predominant_deg: dirección predominante del viento (media circular
-    histórica de ERA5). None cuando el usuario la especifica manualmente."""
-
-    season: Season
-    temp_amb_c: float
-    wind_speed_ms: float
-    wind_angle_deg: float
-    solar_radiation_wm2: float
-    wind_dir_predominant_deg: float | None = None
-
+    elevation_m: float | None = None
 
 
 @dataclass(frozen=True)

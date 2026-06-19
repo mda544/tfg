@@ -33,11 +33,28 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
+// Conversores de formato de coordenadas
+// Leaflet usa {lat, lng} o [lat, lng]. El formato interno de la app usa {lat, lon}.
+
+/** {lat, lon} → [lat, lng] para Leaflet polyline/marker */
+function toLeaflet(c) {
+  return [c.lat, c.lon];
+}
+
+/** {lat, lng} (evento Leaflet) → {lat, lon} (formato interno) */
+function fromLeaflet({ lat, lng }) {
+  return { lat, lon: lng };
+}
+
+/** {lat, lng} (ref interna) → {lat, lon} (para haversineM) */
+function refToInternal({ lat, lng }) {
+  return { lat, lon: lng };
+}
+
 function formatDistance(m) {
   return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 }
 
-// Etiqueta de distancia en tiempo real al dibujar
 const MeasurementLayer = ({ maxSpanM }) => {
   const map = useMap();
   const labelRef = useRef(null);
@@ -72,11 +89,9 @@ const MeasurementLayer = ({ maxSpanM }) => {
     };
     const onMouseMove = (e) => {
       if (!activeRef.current || !lastPtRef.current || !label) return;
-      // haversineM acepta {lat, lng} porque viene de eventos Leaflet
-      const cursor = { lat: e.latlng.lat, lng: e.latlng.lng };
       const dist = haversineM(
-        { lat: lastPtRef.current.lat, lon: lastPtRef.current.lng },
-        { lat: cursor.lat, lon: cursor.lng },
+        refToInternal(lastPtRef.current),
+        refToInternal(e.latlng),
       );
       const over = dist > maxSpanM;
       const pt = map.latLngToContainerPoint(e.latlng);
@@ -139,8 +154,7 @@ const DrawingTools = ({ onRouteDrawn, onRouteRemoved }) => {
     const onCreate = (e) => {
       const latlngs = e.layer.getLatLngs();
       const flat = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
-      // Leaflet devuelve {lat, lng} — convertimos a {lat, lon} (clave canónica)
-      const coords = flat.map((p) => ({ lat: p.lat, lon: p.lng }));
+      const coords = flat.map(fromLeaflet);
       map.removeLayer(e.layer);
       onRouteDrawn({ tipo: e.shape, coordinates: coords });
     };
@@ -160,9 +174,11 @@ const DrawingTools = ({ onRouteDrawn, onRouteRemoved }) => {
 };
 
 function buildPopup(coord, meta, idx) {
+  const title = meta.number ? `Apoyo ${meta.number}` : `Apoyo ${idx + 1}`;
+
   return [
     `<div style="font-family:sans-serif">`,
-    `<h3 style="margin:0 0 5px">Apoyo ${idx + 1}</h3>`,
+    `<h3 style="margin:0 0 5px">${title}</h3>`,
     meta.station ? `<b>Estación:</b> ${meta.station}<br>` : "",
     meta.comment ? `<b>Comentario:</b> ${meta.comment}<br>` : "",
     meta.altitud ? `<b>Altitud:</b> ${meta.altitud.toFixed(2)} m<br>` : "",
@@ -170,13 +186,11 @@ function buildPopup(coord, meta, idx) {
   ].join("");
 }
 
-// Componente principal
 const RouteMap = forwardRef(({ onRouteDrawn, onRouteCleared }, ref) => {
   const mapRef = useRef(null);
   const featureGroupRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
-    // Recibe {lat, lon} y los convierte a [lat, lng] para Leaflet
     drawRoute(feature) {
       const map = mapRef.current;
       const fg = featureGroupRef.current;
@@ -186,8 +200,8 @@ const RouteMap = forwardRef(({ onRouteDrawn, onRouteCleared }, ref) => {
       if (feature.tipo !== "Line" || !feature.coordinates?.length) return;
 
       const points = feature.coordinates;
-      const singulars = feature.propiedades?.puntos_singulares ?? [];
-      const latlngs = points.map((c) => [c.lat, c.lon]);
+      const singulars = feature.propiedades?.support_metadata ?? [];
+      const latlngs = points.map(toLeaflet);
 
       for (let i = 0; i < latlngs.length - 1; i++) {
         L.polyline([latlngs[i], latlngs[i + 1]], ROUTE_STYLE)
@@ -205,6 +219,88 @@ const RouteMap = forwardRef(({ onRouteDrawn, onRouteCleared }, ref) => {
       });
 
       const bounds = L.polyline(latlngs).getBounds();
+      if (bounds.isValid())
+        map.fitBounds(bounds, { maxZoom: 16, padding: [20, 20] });
+    },
+
+    /**
+     * Dibuja los segmentos reales calculados por el backend (T001...T0NN o V001...V0NN).
+     */
+    drawSegments(segments, puntosSingulares = []) {
+      const map = mapRef.current;
+      const fg = featureGroupRef.current;
+      if (!map || !fg || !segments?.length) return;
+
+      fg.clearLayers();
+
+      const findMeta = (p) =>
+        puntosSingulares.find(
+          (s) =>
+            Math.abs(s.lat - p.lat) < 1e-5 && Math.abs(s.lon - p.lon) < 1e-5,
+        ) || {};
+
+      const ampacities = segments.map((s) => s.ampacity);
+      const min = Math.min(...ampacities);
+      const max = Math.max(...ampacities);
+      const range = max - min || 1;
+
+      const colorFor = (amp) => {
+        const t = (amp - min) / range;
+        const hue = t * 120;
+        return `hsl(${hue}, 75%, 45%)`;
+      };
+
+      const allLatLngs = [];
+
+      segments.forEach((seg, idx) => {
+        const start = toLeaflet(seg.start_point);
+        const end = toLeaflet(seg.end_point);
+        allLatLngs.push(start, end);
+
+        const segId = seg.segment_id ?? seg.id ?? "?";
+
+        L.polyline([start, end], {
+          color: colorFor(seg.ampacity),
+          weight: 6,
+        })
+          .bindTooltip(
+            `Tramo ${segId} · ${seg.ampacity.toFixed(0)} A · ${seg.elevation_m?.toFixed(0) ?? 0} m s.n.m.`,
+            { sticky: true },
+          )
+          .addTo(fg);
+
+        const startMeta = findMeta(seg.start_point);
+        const startMarker = L.circleMarker(start, {
+          ...MARKER_STYLE,
+          radius: 4,
+        }).addTo(fg);
+
+        startMarker.bindPopup(buildPopup(seg.start_point, startMeta, idx));
+        startMarker.bindTooltip(
+          startMeta.number ? String(startMeta.number) : `Apoyo ${idx + 1}`,
+          { permanent: false },
+        );
+      });
+
+      const lastSeg = segments[segments.length - 1];
+      const lastEnd = toLeaflet(lastSeg.end_point);
+      const lastMeta = findMeta(lastSeg.end_point);
+      const lastMarker = L.circleMarker(lastEnd, {
+        ...MARKER_STYLE,
+        radius: 4,
+      }).addTo(fg);
+
+      lastMarker.bindPopup(
+        buildPopup(lastSeg.end_point, lastMeta, segments.length),
+      );
+      lastMarker.bindTooltip(
+        lastMeta.number
+          ? String(lastMeta.number)
+          : `Apoyo ${segments.length + 1}`,
+        { permanent: false },
+      );
+
+      const bounds = L.polyline(allLatLngs).getBounds();
       if (bounds.isValid())
         map.fitBounds(bounds, { maxZoom: 16, padding: [20, 20] });
     },

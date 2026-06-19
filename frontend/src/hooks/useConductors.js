@@ -15,23 +15,18 @@ const GLOBAL_IDS = new Set([
 ]);
 
 export function useConductors() {
-  // Conductores globales del catálogo
   const [globals, setGlobals] = useState(DEFAULT_CONDUCTORS);
-  // Conductores personalizados del usuario
   const [custom, setCustom] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // Carga conductores del backend al montar y separa globales de custom
   useEffect(() => {
     getConductors()
       .then((data) => {
         setGlobals(data.filter((c) => GLOBAL_IDS.has(c.id)));
         setCustom(data.filter((c) => !GLOBAL_IDS.has(c.id)));
       })
-      .catch(() => {
-        // Si falla mantiene DEFAULT_CONDUCTORS como globales
-      });
+      .catch(() => {});
   }, []);
 
   const conductors = [...globals, ...custom];

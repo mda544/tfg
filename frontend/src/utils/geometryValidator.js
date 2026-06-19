@@ -17,7 +17,6 @@ const LIMITS = {
   MAX_SPAN_KM: 50,
 };
 
-/** Valida un array de coordenadas {lat, lon}. */
 export function validateRoute(coordinates) {
   const errors = [];
   const warnings = [];
@@ -143,7 +142,6 @@ export function validateRoute(coordinates) {
   return { valid: errors.length === 0, errors, warnings, info };
 }
 
-/** Distancia Haversine en metros entre dos puntos {lat, lon}. */
 export function haversineM(a, b) {
   const R = 6_371_000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -156,7 +154,8 @@ export function haversineM(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-/** Inserta puntos intermedios en vanos > maxSpanM. Opera con {lat, lon}. */
+/** Inserta puntos intermedios en vanos > maxSpanM. Opera con {lat, lon}.
+ *  Los puntos originales (apoyos reales) conservan elevation_m/altitud. */
 export function densifyRoute(coordinates, maxSpanM = 500) {
   if (!coordinates || coordinates.length < 2) return coordinates;
 
@@ -174,6 +173,7 @@ export function densifyRoute(coordinates, maxSpanM = 500) {
         result.push({
           lat: p1.lat + (p2.lat - p1.lat) * t,
           lon: p1.lon + (p2.lon - p1.lon) * t,
+          // sin elevation_m — punto interpolado, no apoyo real
         });
       }
     }
@@ -183,21 +183,25 @@ export function densifyRoute(coordinates, maxSpanM = 500) {
   return result;
 }
 
-/** Normaliza coordenadas Leaflet (que usan `lng`) al formato interno {lat, lon}. */
+/** Normaliza coordenadas Leaflet (que usan `lng`) al formato interno {lat, lon}.
+ *  Preserva elevation_m y altitud si están presentes. */
 export function normalizeToLatLon(raw) {
   const flat = Array.isArray(raw[0]) ? raw[0] : raw;
-  return flat.map((p) => ({
-    lat: typeof p.lat === "number" ? p.lat : p[0],
-    lon:
+  return flat.map((p) => {
+    const lat = typeof p.lat === "number" ? p.lat : p[0];
+    const lon =
       typeof p.lng === "number"
         ? p.lng
         : typeof p.lon === "number"
           ? p.lon
-          : p[1],
-  }));
+          : p[1];
+    const result = { lat, lon };
+    if (p.elevation_m != null) result.elevation_m = p.elevation_m;
+    if (p.altitud != null) result.altitud = p.altitud;
+    return result;
+  });
 }
 
-/** Convierte {lat, lon} → {lat, lng} para Leaflet. */
 export function toLngLat(coords) {
   return coords.map((c) => ({ lat: c.lat, lng: c.lon }));
 }

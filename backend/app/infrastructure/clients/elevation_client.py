@@ -1,17 +1,15 @@
 import asyncio
 from typing import Optional
 
-from app.infrastructure.clients.weather_client import (
+from app.infrastructure.clients.base_client import (
     _request_with_retry,
     ExternalAPIUnavailableError,
 )
 from app.core.config import settings
 
-# Valor 1 = solo una petición simultánea + 1.1s de espera entre llamadas.
 _OPENTOPODATA_SEMAPHORE = asyncio.Semaphore(1)
 
 
-# Obtiene elevaciones en batch desde Open-Meteo Elevation API. None para puntos fallidos
 async def fetch_openmeteo_elevation(
     points: list[tuple[float, float]],
 ) -> list[Optional[float]]:
@@ -39,7 +37,7 @@ async def fetch_openmeteo_elevation(
     return results
 
 
-# Fallback usando Open-Topo-Data SRTM30m. Semáforo para respetar el rate limit de la API
+# Fallback usando Open-Topo-Data SRTM30m.
 async def fetch_opentopodata_elevation(lat: float, lon: float) -> Optional[float]:
     async with _OPENTOPODATA_SEMAPHORE:
         try:

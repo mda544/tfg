@@ -24,8 +24,6 @@ class ElevationRepository:
     async def create_elevation(
         self, db: AsyncSession, lat: float, lon: float, elevation_m: float
     ) -> None:
-        """Persiste la elevación en caché.
-        Usa ON CONFLICT DO NOTHING — no sobreescribe si ya existe."""
         stmt = (
             insert(ElevationCacheORM)
             .values(

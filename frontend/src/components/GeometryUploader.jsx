@@ -1,12 +1,18 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { parseGeoJSON, parseSHP } from "../utils/geometryLoader";
 import { parseLineExcel } from "../utils/excelParser";
 import styles from "./GeometryUploader.module.css";
 
-export default function GeometryUploader({ onRouteLoaded }) {
+export default function GeometryUploader({ onRouteLoaded, resetKey }) {
   const inputRef = useRef(null);
-  const [status, setStatus] = useState("idle"); // idle | loading | error
+  const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
+
+  // Limpia el mensaje cuando se limpia el mapa
+  useEffect(() => {
+    setStatus("idle");
+    setMessage("");
+  }, [resetKey]);
 
   const processFiles = async (files) => {
     const fileList = Array.from(files);

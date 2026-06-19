@@ -3,10 +3,10 @@ import {
   SEASON_COLOR,
   ELEVATION_SOURCE_LABEL,
   ampacityColor,
-  CLIMATE_SOURCE_LABEL,
-  CONV_MODE_LABEL,
 } from "./resultsUtils";
 import "./RatesResultsPanel.css";
+
+const SEASONS = ["verano", "otono", "invierno", "primavera"];
 
 export default function RatesResultsPanel({ result }) {
   if (!result) return null;
@@ -22,40 +22,29 @@ export default function RatesResultsPanel({ result }) {
 
   const {
     design_rate,
-    rate_summer,
-    rate_autumn,
-    rate_winter,
-    rate_spring,
-    segments = [],
+    season_results = [],
     n_segments,
-    conductor,
-    climate_source,
-    elevation_source = "none",
     warnings = [],
   } = result;
 
-  const rates_by_season = {
-    verano: rate_summer,
-    otono: rate_autumn,
-    invierno: rate_winter,
-    primavera: rate_spring,
-  };
-
-  const seasons = Object.keys(rates_by_season).filter(
-    (k) => rates_by_season[k] != null,
+  // Índice season para acceso rápido
+  const bySeasonMap = Object.fromEntries(
+    season_results.map((sr) => [sr.season, sr]),
   );
 
-  const criticalSegment = segments.reduce(
-    (min, t) => (t.design_rate < min.design_rate ? t : min),
-    segments[0] ?? { design_rate: Infinity, segment_id: "—" },
+  const elevationSource = season_results[0]?.elevation_source ?? "none";
+
+  const criticalSR = season_results.reduce(
+    (min, sr) => (sr.design_rate < (min?.design_rate ?? Infinity) ? sr : min),
+    null,
+  );
+  const criticalSegment = criticalSR?.segments?.reduce(
+    (min, s) => (s.ampacity < (min?.ampacity ?? Infinity) ? s : min),
+    null,
   );
 
-  const ampacidades = segments.map((t) => t.design_rate);
-  const hasVariation =
-    ampacidades.length > 1 &&
-    Math.max(...ampacidades) - Math.min(...ampacidades) > 0.5;
-
-  const fuenteAlt = elevation_source ?? "none";
+  // Todos los SeasonResult tienen los mismos segmentos (mismo índice)
+  const refSegments = season_results[0]?.segments ?? [];
 
   return (
     <div className="prr-panel">
@@ -64,12 +53,12 @@ export default function RatesResultsPanel({ result }) {
         <div>
           <p className="prr-label">Rate de diseño de la línea</p>
           <p className="prr-rate-principal">
-            {design_rate} <span>A</span>
+            {design_rate?.toFixed(0)} <span>A</span>
           </p>
           <p className="prr-sublabel">
-            Tramo crítico: {criticalSegment.segment_id}
-            {criticalSegment.elevation_m > 0
-              ? ` · ${criticalSegment.elevation_m} m s.n.m.`
+            Tramo crítico: {criticalSegment?.segment_id ?? "—"}
+            {criticalSegment?.elevation_m > 0
+              ? ` · ${Math.round(criticalSegment.elevation_m)} m s.n.m.`
               : ""}
             {" · "}
             {n_segments} tramos
@@ -78,7 +67,7 @@ export default function RatesResultsPanel({ result }) {
         <div className="prr-badge-metodo">IEEE 738-2012</div>
       </div>
 
-      {/* Criterio + fuente altitud */}
+      {/* Fuente de elevación */}
       <div className="prr-criterio">
         <span>
           Criterio: P90 temperatura / P10 viento. Rate = mínimo de todos los
@@ -86,27 +75,18 @@ export default function RatesResultsPanel({ result }) {
         </span>
         <span
           className={`prr-dem-badge prr-dem-${
-            fuenteAlt.includes("error")
-              ? "error"
-              : fuenteAlt === "none"
-                ? "off"
-                : "ok"
+            elevationSource === "none" ? "off" : "ok"
           }`}
         >
-          Altitud: {ELEVATION_SOURCE_LABEL[fuenteAlt] ?? fuenteAlt}
+          Altitud: {ELEVATION_SOURCE_LABEL[elevationSource] ?? elevationSource}
         </span>
       </div>
 
-      {!hasVariation && segments.length > 1 && fuenteAlt !== "none" && (
-        <div className="prr-aviso-plano">
-          Todos los tramos tienen el mismo rate.
-        </div>
-      )}
-
       {/* Rates por estación */}
       <div className="prr-estaciones">
-        {seasons.map((season) => {
-          const amp = rates_by_season[season];
+        {SEASONS.filter((s) => bySeasonMap[s]).map((season) => {
+          const sr = bySeasonMap[season];
+          const amp = sr.design_rate;
           const c = ampacityColor(amp);
           return (
             <div
@@ -119,7 +99,7 @@ export default function RatesResultsPanel({ result }) {
                 className="prr-est-amp"
                 style={{ color: c.text, background: c.bg }}
               >
-                {amp} A
+                {amp?.toFixed(0)} A
               </p>
               <p className="prr-est-sub">mínimo de tramos</p>
             </div>
@@ -127,8 +107,8 @@ export default function RatesResultsPanel({ result }) {
         })}
       </div>
 
-      {/* Tabla de segmentos */}
-      {segments.length > 0 && (
+      {/* Tabla de tramos — una fila por segmento, una col por estación */}
+      {refSegments.length > 0 && (
         <div className="prr-tabla-wrap">
           <table className="prr-tabla">
             <thead>
@@ -136,7 +116,7 @@ export default function RatesResultsPanel({ result }) {
                 <th>Tramo</th>
                 <th>Long.</th>
                 <th>Alt.</th>
-                {seasons.map((s) => (
+                {SEASONS.filter((s) => bySeasonMap[s]).map((s) => (
                   <th key={s} style={{ color: SEASON_COLOR[s] }}>
                     {SEASON_LABEL[s]?.slice(0, 3)}.
                   </th>
@@ -146,35 +126,43 @@ export default function RatesResultsPanel({ result }) {
               </tr>
             </thead>
             <tbody>
-              {segments.map((seg) => {
-                const isCritical =
-                  seg.segment_id === criticalSegment.segment_id;
-                const c = ampacityColor(seg.design_rate);
-                const firstSeason = seasons[0];
-                const modo =
-                  CONV_MODE_LABEL[seg.ratings?.[firstSeason]?.conv_mode] ?? "—";
+              {refSegments.map((refSeg, idx) => {
+                // Ampacidad de este tramo por estación
+                const ampsBySeasonMap = Object.fromEntries(
+                  season_results.map((sr) => [
+                    sr.season,
+                    sr.segments[idx]?.ampacity,
+                  ]),
+                );
+                const segDesignRate = Math.min(
+                  ...Object.values(ampsBySeasonMap).filter(Boolean),
+                );
+                const esCritico =
+                  refSeg.segment_id === criticalSegment?.segment_id;
+                const c = ampacityColor(segDesignRate);
+                const modo = criticalSR?.segments[idx]?.conv_mode ?? "—";
 
                 return (
                   <tr
-                    key={seg.segment_id}
-                    className={isCritical ? "prr-fila-critica" : ""}
+                    key={refSeg.segment_id}
+                    className={esCritico ? "prr-fila-critica" : ""}
                   >
-                    <td className="prr-td-id">{seg.segment_id}</td>
-                    <td>{seg.length_km} km</td>
+                    <td className="prr-td-id">{refSeg.segment_id}</td>
+                    <td>{refSeg.length_km?.toFixed(2)} km</td>
                     <td className="prr-td-alt">
-                      {(seg.elevation_m ?? 0) > 0
-                        ? `${Math.round(seg.elevation_m)} m`
+                      {refSeg.elevation_m > 0
+                        ? `${Math.round(refSeg.elevation_m)} m`
                         : "—"}
                     </td>
-                    {seasons.map((s) => (
-                      <td key={s}>{seg.rates?.[s] ?? "—"} A</td>
+                    {SEASONS.filter((s) => bySeasonMap[s]).map((s) => (
+                      <td key={s}>{ampsBySeasonMap[s]?.toFixed(0) ?? "—"} A</td>
                     ))}
                     <td>
                       <span
                         className="prr-pill"
                         style={{ background: c.bg, color: c.text }}
                       >
-                        {seg.design_rate} A
+                        {segDesignRate?.toFixed(0)} A
                       </span>
                     </td>
                     <td className="prr-td-modo">{modo}</td>
@@ -197,21 +185,6 @@ export default function RatesResultsPanel({ result }) {
           </ul>
         </div>
       )}
-
-      {/* Trazabilidad */}
-      <div className="prr-trazabilidad">
-        <p>
-          Conductor: Ø{conductor?.diameter_mm} mm · R75=
-          {conductor?.r_ac_75_ohm_km} Ω/km · R25={conductor?.r_ac_25_ohm_km}{" "}
-          Ω/km · Tmax={conductor?.max_temp_c}°C · ε={conductor?.emissivity} · α=
-          {conductor?.absorptivity}
-        </p>
-        <p>
-          Modelo: IEEE Std 738-2012 · Régimen estacionario · Fuente climática:{" "}
-          {CLIMATE_SOURCE_LABEL[climate_source] ?? climate_source} · Altitud:{" "}
-          {ELEVATION_SOURCE_LABEL[fuenteAlt] ?? fuenteAlt}
-        </p>
-      </div>
     </div>
   );
 }

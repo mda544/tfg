@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, get_conductors_repo
 from app.api.schemas.models import ConductorCreateDTO, ConductorResponseDTO
+from app.domain.repository_interfaces import IConductorsRepository
 from app.services import conductors_service
 
 router = APIRouter()
@@ -12,8 +13,9 @@ router = APIRouter()
 async def list_conductors(
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user),
+    repo: IConductorsRepository = Depends(get_conductors_repo),
 ):
-    return await conductors_service.get_all(db, user_id)
+    return await conductors_service.get_all(db, user_id, repo)
 
 
 @router.post(
@@ -23,8 +25,9 @@ async def create_conductor(
     data: ConductorCreateDTO,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user),
+    repo: IConductorsRepository = Depends(get_conductors_repo),
 ):
-    return await conductors_service.create(db, data, user_id)
+    return await conductors_service.create(db, data, user_id, repo)
 
 
 @router.get("/{conductor_id}", response_model=ConductorResponseDTO)
@@ -32,8 +35,9 @@ async def get_conductor(
     conductor_id: str,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user),
+    repo: IConductorsRepository = Depends(get_conductors_repo),
 ):
-    return await conductors_service.get_by_id(db, conductor_id, user_id)
+    return await conductors_service.get_by_id(db, conductor_id, user_id, repo)
 
 
 @router.put("/{conductor_id}", response_model=ConductorResponseDTO)
@@ -42,8 +46,9 @@ async def update_conductor(
     data: ConductorCreateDTO,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user),
+    repo: IConductorsRepository = Depends(get_conductors_repo),
 ):
-    return await conductors_service.update(db, conductor_id, data, user_id)
+    return await conductors_service.update(db, conductor_id, data, user_id, repo)
 
 
 @router.delete("/{conductor_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -51,5 +56,6 @@ async def delete_conductor(
     conductor_id: str,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user),
+    repo: IConductorsRepository = Depends(get_conductors_repo),
 ):
-    await conductors_service.delete(db, conductor_id, user_id)
+    await conductors_service.delete(db, conductor_id, user_id, repo)

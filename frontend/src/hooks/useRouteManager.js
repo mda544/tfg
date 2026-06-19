@@ -52,6 +52,18 @@ export function useRouteManager(climateSource) {
     [_process, _syncClimate, resetDefaults],
   );
 
+  const loadSavedRoute = useCallback(
+    async (feature) => {
+      setRouteData(feature);
+      setValidation(validateRoute(feature.coordinates));
+      resetDefaults();
+      mapRef.current?.drawRoute(feature);
+      const scenarios = await _syncClimate(feature.coordinates);
+      return { feature, scenarios };
+    },
+    [_syncClimate, resetDefaults],
+  );
+
   const resyncClimate = useCallback(
     (source) => {
       if (!routeData?.coordinates) return Promise.resolve(null);
@@ -63,13 +75,16 @@ export function useRouteManager(climateSource) {
   const saveRoute = useCallback(
     async (opts = {}) => {
       if (!routeData) return null;
+      if (!opts.conductorId) {
+        setSaveError("Selecciona un conductor antes de guardar.");
+        return null;
+      }
       setSaving(true);
       setSaveError(null);
       try {
-        const singulars = routeData.propiedades?.puntos_singulares ?? [];
+        const singulars = routeData.propiedades?.support_metadata ?? [];
         const hasRealSpans = singulars.length >= 2;
 
-        // Enviar elevation_m si viene del archivo (Excel col Z o GeoJSON con Z)
         const coordsPayload = routeData.coordinates.map(
           ({ lat, lon, elevation_m, altitud }) => ({
             lat,
@@ -82,19 +97,21 @@ export function useRouteManager(climateSource) {
           }),
         );
 
-        // 1. POST /lines
         const line = await createLine({
           name: opts.lineName ?? "Línea sin nombre",
           description: opts.lineDesc ?? null,
           coordinates: coordsPayload,
+          support_metadata: singulars.length > 0 ? singulars : null,
         });
 
-        // 2. POST /study-cases
+        const useRealSpans = opts.useRealSpans ?? hasRealSpans;
+
         const sc = await createStudyCase({
           name: opts.caseName ?? `Estudio ${new Date().toLocaleDateString()}`,
           line_id: line.id,
-          segment_step_m: opts.segmentStep ?? 500.0,
-          use_real_spans: opts.useRealSpans ?? hasRealSpans,
+          conductor_id: opts.conductorId,
+          segment_step_m: useRealSpans ? null : (opts.segmentStep ?? 500.0),
+          use_real_spans: useRealSpans,
           use_dem: opts.useDem ?? true,
         });
 
@@ -130,8 +147,10 @@ export function useRouteManager(climateSource) {
     saveError,
     apiDefaults,
     loadRoute,
+    loadSavedRoute,
     resyncClimate,
     saveRoute,
     clear,
+    setStudyCaseId,
   };
 }

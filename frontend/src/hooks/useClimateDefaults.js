@@ -6,7 +6,6 @@ export function useClimateDefaults() {
   const [slowLoad, setSlowLoad] = useState(false);
   const [error, setError] = useState(null);
 
-  // apiDefaults últimos valores recibidos de la API (ERA5 o NASA).
   const [apiDefaults, setApiDefaults] = useState(null);
 
   const fetchDefaults = useCallback(
@@ -17,7 +16,7 @@ export function useClimateDefaults() {
       setSlowLoad(false);
       setError(null);
 
-      const timer = setTimeout(() => setSlowLoad(true), 300);
+      const timer = setTimeout(() => setSlowLoad(true), 1500); // 1.5s — la caché local es rápida
 
       try {
         const mid = coordinates[Math.floor(coordinates.length / 2)];

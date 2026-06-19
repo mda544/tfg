@@ -1,5 +1,9 @@
 import ConductorSelector from "../conductor/ConductorSelector";
+import { haversineM } from "../../utils/geometryValidator";
 import GeometryUploader from "../../components/GeometryUploader";
+import LineSelector from "../lines/LineSelector";
+import StudyCaseSelector from "../lines/StudyCaseSelector";
+import CalculationSelector from "../lines/CalculationSelector";
 import SeasonalScenariosPanel from "../scenarios/SeasonalScenariosPanel";
 import ValidationPanel from "../../components/ValidationPanel";
 
@@ -10,13 +14,40 @@ export default function PanelConfig({
     loadingClimate,
     climateSlowLoad,
     onLoaded,
+    onSavedLineLoaded,
     onClear,
+  },
+  lineSelector: {
+    lines,
+    loading: loadingLines,
+    error: linesError,
+    loadLineGeoJSON,
+  },
+  studyCaseSelector: {
+    show: showStudyCaseSelector,
+    studyCases,
+    loading: loadingStudyCases,
+    selectedId: studyCaseSelectedId,
+    onSelect: onStudyCaseSelect,
+    onCreate: onStudyCaseCreate,
+    disabled: studyCaseSelectorDisabled,
+  },
+  calculationSelector: {
+    show: showCalculationSelector,
+    calculations,
+    loading: loadingCalculations,
+    selectedId: calcSelectedId,
+    onSelect: onCalcSelect,
+    onNew: onCalcNew,
+    disabled: calcSelectorDisabled,
   },
   save: {
     lineName,
     caseName,
     onLineNameChange,
     onCaseNameChange,
+    segmentStep,
+    onSegmentStepChange,
     onSave,
     saving,
     error: saveError,
@@ -62,15 +93,61 @@ export default function PanelConfig({
 
       <section className="panel-section">
         <h2>Geometría</h2>
-        <GeometryUploader onRouteLoaded={onLoaded} />
+        <LineSelector
+          lines={lines}
+          loading={loadingLines}
+          error={linesError}
+          loadLineGeoJSON={loadLineGeoJSON}
+          onLineLoaded={onSavedLineLoaded}
+          disabled={Boolean(routeData)}
+        />
+        {showStudyCaseSelector && (
+          <StudyCaseSelector
+            studyCases={studyCases}
+            loading={loadingStudyCases}
+            selectedId={studyCaseSelectedId}
+            onSelect={onStudyCaseSelect}
+            onCreate={onStudyCaseCreate}
+            disabled={studyCaseSelectorDisabled}
+          />
+        )}
+        {showCalculationSelector && (
+          <CalculationSelector
+            calculations={calculations}
+            loading={loadingCalculations}
+            selectedId={calcSelectedId}
+            onSelect={onCalcSelect}
+            onNew={onCalcNew}
+            disabled={calcSelectorDisabled}
+          />
+        )}
+        {!routeData && <GeometryUploader onRouteLoaded={onLoaded} />}
         <button className="btn-secondary" onClick={onClear}>
           Limpiar mapa
         </button>
         <div className="estado-mapa">
           {routeData ? (
-            <p className="ok">
-              Trazado listo · {routeData.coordinates.length} apoyos
-            </p>
+            <>
+              {routeData.propiedades?.nombre && (
+                <p className="ok" style={{ fontWeight: "bold" }}>
+                  {routeData.propiedades.nombre}
+                </p>
+              )}
+              <p className="ok">
+                {(() => {
+                  const fuente = routeData.propiedades?.fuente;
+                  const termino =
+                    fuente === "excel" || fuente === "geojson"
+                      ? "apoyos"
+                      : "vértices";
+                  const n =
+                    routeData.propiedades?.n_apoyos ??
+                    routeData.coordinates.length;
+                  const km = routeData.propiedades?.length_km;
+                  return `Trazado listo · ${n} ${termino}${km ? ` · ${km.toFixed(1)} km` : ""}`;
+                })()}
+              </p>
+            </>
           ) : (
             <p className="espera">Dibuja o carga un trazado en el mapa</p>
           )}
@@ -102,6 +179,43 @@ export default function PanelConfig({
           value={caseName}
           onChange={(e) => onCaseNameChange(e.target.value)}
         />
+        {routeData &&
+          (routeData.propiedades?.support_metadata?.length ?? 0) < 2 && (
+            <>
+              <label className="field-label" style={{ marginTop: "8px" }}>
+                Paso de segmentación (m)
+              </label>
+              <div
+                style={{ display: "flex", gap: "8px", alignItems: "center" }}
+              >
+                <input
+                  className="input-field"
+                  type="number"
+                  min={50}
+                  max={500}
+                  step={50}
+                  value={segmentStep}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (v >= 50 && v <= 500) onSegmentStepChange(v);
+                  }}
+                  style={{ width: "100px" }}
+                />
+                <span style={{ fontSize: "12px", color: "#64748b" }}>
+                  {(() => {
+                    const coords = routeData?.coordinates;
+                    if (!coords || coords.length < 2) return "— tramos";
+                    const lengthM = coords.reduce(
+                      (acc, c, i) =>
+                        i === 0 ? 0 : acc + haversineM(coords[i - 1], c),
+                      0,
+                    );
+                    return `≈ ${Math.max(1, Math.round(lengthM / segmentStep))} tramos · ${(lengthM / 1000).toFixed(1)} km`;
+                  })()}
+                </span>
+              </div>
+            </>
+          )}
         {saveError && <div className="error-banner">Error: {saveError}</div>}
         {studyCaseId ? (
           <p className="ok" style={{ marginTop: "8px" }}>

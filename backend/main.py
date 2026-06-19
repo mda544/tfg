@@ -1,29 +1,33 @@
-import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from app.core.limiter import limiter
 
 from app.api.routes import (
     auth,
     conductors,
     lines,
     study_cases,
-    rates,
+    calculations,
     climate,
     elevation,
+)
+from app.domain.exceptions import (
+    EntityNotFoundError,
+    EntityConflictError,
+    ValidationError,
+    CalculationError,
+    ExternalServiceError,
 )
 from app.core.config import settings
 from app.infrastructure.database import engine, Base
 from app.infrastructure import orm_models
 from app.infrastructure.clients.http_client import startup, shutdown
 from app.seed import seed_default_conductors
-
-logger = logging.getLogger(__name__)
-limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
@@ -44,25 +48,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-
-# Handler global para excepciones no controladas
-# loguea el detalle en el servidor y devuelve un mensaje genérico al cliente
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.exception(
-        "Unhandled exception on %s %s: %s", request.method, request.url.path, exc
-    )
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "Error interno del servidor. Contacte con el administrador."
-        },
-    )
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,13 +59,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Público
-app.include_router(auth.router, prefix="/api/v1/auth")
 
-# Protegidos
+# Traducción de excepciones de dominio -> HTTP
+
+
+@app.exception_handler(EntityNotFoundError)
+async def not_found_handler(request: Request, exc: EntityNotFoundError):
+    return JSONResponse(status_code=404, content={"detail": exc.message})
+
+
+@app.exception_handler(EntityConflictError)
+async def conflict_handler(request: Request, exc: EntityConflictError):
+    return JSONResponse(status_code=409, content={"detail": exc.message})
+
+
+@app.exception_handler(ValidationError)
+async def validation_handler(request: Request, exc: ValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.message,
+            "errors": exc.errors,
+            "warnings": exc.warnings,
+        },
+    )
+
+
+@app.exception_handler(CalculationError)
+async def calculation_handler(request: Request, exc: CalculationError):
+    return JSONResponse(status_code=400, content={"detail": exc.message})
+
+
+@app.exception_handler(ExternalServiceError)
+async def external_service_handler(request: Request, exc: ExternalServiceError):
+    return JSONResponse(status_code=503, content={"detail": exc.message})
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"[ERROR] {request.method} {request.url.path} — {type(exc).__name__}: {exc}")
+    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
+
+
+# Routers
+
+app.include_router(auth.router, prefix="/api/v1/auth")
 app.include_router(conductors.router, prefix="/api/v1/conductors")
 app.include_router(lines.router, prefix="/api/v1/lines")
 app.include_router(study_cases.router, prefix="/api/v1/study-cases")
-app.include_router(rates.router, prefix="/api/v1/rates")
+app.include_router(
+    calculations.router,
+    prefix="/api/v1/study-cases/{case_id}/calculations",
+)
 app.include_router(climate.router, prefix="/api/v1/climate")
 app.include_router(elevation.router, prefix="/api/v1/elevation")

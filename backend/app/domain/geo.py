@@ -52,14 +52,8 @@ def wind_angle_for_segment(
     user_wind_angle_deg: float,
 ) -> float:
     """Calcula el ángulo efectivo viento-conductor (φ) para un segmento.
-
-    Si hay dirección predominante del viento de ERA5:
-        φ = |wind_dir - azimuth_segmento| normalizado a 0-90°
-        0°  = viento paralelo al conductor (mínima convección)
-        90° = viento perpendicular (máxima convección)
-
-    Si no hay dirección (NASA POWER o escenario manual):
-        usa el ángulo introducido por el usuario (90° por defecto)
+    Si no hay dirección (NASA POWER o escenario manual) 
+    usa el ángulo introducido por el usuario (90° por defecto)
     """
     if wind_dir_predominant_deg is None:
         return user_wind_angle_deg
