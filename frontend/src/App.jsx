@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "./auth/useAuth";
 import { useRouteManager } from "./hooks/useRouteManager";
 import { useCalculateRates } from "./hooks/useCalculateRates";
+import { useSavedLines } from "./hooks/useSavedLines";
 import { useSavedStudyCases } from "./hooks/useSavedStudyCases";
 import { useSavedCalculations } from "./hooks/useSavedCalculations";
 import { DEFAULT_CONDUCTORS } from "./features/conductor/conductorData";
@@ -42,6 +43,14 @@ export default function App() {
     clear,
     setStudyCaseId,
   } = useRouteManager(climateSource);
+
+  const {
+    lines,
+    loading: loadingLines,
+    error: linesError,
+    refresh: refreshLines,
+    loadLineGeoJSON,
+  } = useSavedLines();
 
   const {
     studyCases,
@@ -157,6 +166,9 @@ export default function App() {
       segmentStep: segmentStep,
       useDem: true,
     });
+    if (newId) {
+      await refreshLines();
+    }
     if (newId && activeSavedLineId) {
       await refreshStudyCases(activeSavedLineId);
     }
@@ -168,6 +180,7 @@ export default function App() {
     saveRoute,
     activeSavedLineId,
     refreshStudyCases,
+    refreshLines,
   ]);
 
   const handleCalculate = useCallback(async () => {
@@ -229,6 +242,12 @@ export default function App() {
             onLoaded: handleRouteLoaded,
             onSavedLineLoaded: handleSavedLineLoaded,
             onClear: handleClear,
+          }}
+          lineSelector={{
+            lines,
+            loading: loadingLines,
+            error: linesError,
+            loadLineGeoJSON,
           }}
           studyCaseSelector={{
             show: showStudyCaseSelector,

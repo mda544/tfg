@@ -1,12 +1,17 @@
-import { useSavedLines } from "../../hooks/useSavedLines";
 import styles from "./LineSelector.module.css";
 import { formatDateTime } from "../../utils/dateUtils";
+
 /**
  * Desplegable de líneas guardadas.
  */
-export default function LineSelector({ onLineLoaded, disabled }) {
-  const { lines, loading, error, loadLineGeoJSON } = useSavedLines();
-
+export default function LineSelector({
+  lines = [],
+  loading,
+  error,
+  loadLineGeoJSON,
+  onLineLoaded,
+  disabled,
+}) {
   const handleChange = async (e) => {
     const lineId = e.target.value;
     if (!lineId) return;

@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional
 
-from app.infrastructure.clients.weather_client import (
+from app.infrastructure.clients.base_client import (
     _request_with_retry,
     ExternalAPIUnavailableError,
 )

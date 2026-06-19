@@ -17,6 +17,12 @@ export default function PanelConfig({
     onSavedLineLoaded,
     onClear,
   },
+  lineSelector: {
+    lines,
+    loading: loadingLines,
+    error: linesError,
+    loadLineGeoJSON,
+  },
   studyCaseSelector: {
     show: showStudyCaseSelector,
     studyCases,
@@ -88,6 +94,10 @@ export default function PanelConfig({
       <section className="panel-section">
         <h2>Geometría</h2>
         <LineSelector
+          lines={lines}
+          loading={loadingLines}
+          error={linesError}
+          loadLineGeoJSON={loadLineGeoJSON}
           onLineLoaded={onSavedLineLoaded}
           disabled={Boolean(routeData)}
         />
@@ -169,9 +179,8 @@ export default function PanelConfig({
           value={caseName}
           onChange={(e) => onCaseNameChange(e.target.value)}
         />
-        {/* Paso de segmentación — solo cuando no hay vanos reales del Excel */}
         {routeData &&
-          (routeData.propiedades?.puntos_singulares?.length ?? 0) < 2 && (
+          (routeData.propiedades?.support_metadata?.length ?? 0) < 2 && (
             <>
               <label className="field-label" style={{ marginTop: "8px" }}>
                 Paso de segmentación (m)
@@ -194,7 +203,6 @@ export default function PanelConfig({
                 />
                 <span style={{ fontSize: "12px", color: "#64748b" }}>
                   {(() => {
-                    // Calcular longitud desde coordenadas si no está en propiedades
                     const coords = routeData?.coordinates;
                     if (!coords || coords.length < 2) return "— tramos";
                     const lengthM = coords.reduce(

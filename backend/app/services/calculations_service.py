@@ -10,9 +10,11 @@ from app.domain.value_objects import PointMeteoConditions
 from app.domain.entities import WeatherInput, SeasonResult, Segment
 from app.domain.types import ElevationSource
 from app.domain.geo import wind_angle_for_segment
-from app.infrastructure.repositories.calculations_repository import calculations_repo
-from app.infrastructure.repositories.study_cases_repository import study_cases_repo
-from app.infrastructure.repositories.lines_repository import lines_repo
+from app.domain.repository_interfaces import (
+    ICalculationsRepository,
+    IStudyCasesRepository,
+    ILinesRepository,
+)
 from app.infrastructure.mappers.calculations_mapper import (
     build_calculation_entity,
     entity_to_dto,
@@ -82,10 +84,14 @@ def _perform_thermal_calculations(
 
 
 async def get_by_id(
-    db: AsyncSession, calc_id: str, case_id: str, user_id: str
+    db: AsyncSession,
+    calc_id: str,
+    case_id: str,
+    user_id: str,
+    repo: ICalculationsRepository,
 ) -> CalculationResponseDTO:
     try:
-        entity = await calculations_repo.get_by_id(db, calc_id, user_id)
+        entity = await repo.get_by_id(db, calc_id, user_id)
     except NoResultFound:
         raise EntityNotFoundError(f"Calculation {calc_id} not found.")
     if entity.study_case_id != case_id:
@@ -94,28 +100,36 @@ async def get_by_id(
 
 
 async def get_by_study_case(
-    db: AsyncSession, case_id: str, user_id: str
+    db: AsyncSession, case_id: str, user_id: str, repo: ICalculationsRepository
 ) -> list[CalculationResponseDTO]:
     return [
-        entity_to_dto(e)
-        for e in await calculations_repo.get_by_study_case(db, case_id, user_id)
+        entity_to_dto(e) for e in await repo.get_by_study_case(db, case_id, user_id)
     ]
 
 
-async def delete(db: AsyncSession, calc_id: str, case_id: str, user_id: str) -> None:
+async def delete(
+    db: AsyncSession,
+    calc_id: str,
+    case_id: str,
+    user_id: str,
+    repo: ICalculationsRepository,
+) -> None:
     try:
-        entity = await calculations_repo.get_by_id(db, calc_id, user_id)
+        entity = await repo.get_by_id(db, calc_id, user_id)
     except NoResultFound:
         raise EntityNotFoundError(f"Calculation {calc_id} not found.")
     if entity.study_case_id != case_id:
         raise EntityNotFoundError(f"Calculation {calc_id} not found.")
-    await calculations_repo.delete(db, calc_id, user_id)
+    await repo.delete(db, calc_id, user_id)
 
 
 async def create(
     db: AsyncSession,
     req: CalculationCreateDTO,
     user_id: str,
+    study_cases_repo: IStudyCasesRepository,
+    lines_repo: ILinesRepository,
+    calculations_repo: ICalculationsRepository,
 ) -> CalculationResponseDTO:
 
     try:

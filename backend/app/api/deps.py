@@ -7,6 +7,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.infrastructure.database import AsyncSessionLocal
+from app.domain.repository_interfaces import (
+    ILinesRepository,
+    IConductorsRepository,
+    IStudyCasesRepository,
+    ICalculationsRepository,
+    IElevationRepository,
+    IClimateRepository,
+    IUsersRepository,
+)
+from app.infrastructure.repositories.users_repository import users_repo
+from app.infrastructure.repositories.lines_repository import lines_repo
+from app.infrastructure.repositories.conductors_repository import conductors_repo
+from app.infrastructure.repositories.study_cases_repository import study_cases_repo
+from app.infrastructure.repositories.calculations_repository import calculations_repo
+from app.infrastructure.repositories.elevation_repository import elevation_repo
+from app.infrastructure.repositories.climate_repository import climate_repo
 
 _bearer = HTTPBearer()
 
@@ -41,3 +57,31 @@ async def get_current_user(
             detail="Token inválido o expirado.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def get_users_repo() -> IUsersRepository:
+    return users_repo
+
+
+def get_lines_repo() -> ILinesRepository:
+    return lines_repo
+
+
+def get_conductors_repo() -> IConductorsRepository:
+    return conductors_repo
+
+
+def get_study_cases_repo() -> IStudyCasesRepository:
+    return study_cases_repo
+
+
+def get_calculations_repo() -> ICalculationsRepository:
+    return calculations_repo
+
+
+def get_elevation_repo() -> IElevationRepository:
+    return elevation_repo
+
+
+def get_climate_repo() -> IClimateRepository:
+    return climate_repo
