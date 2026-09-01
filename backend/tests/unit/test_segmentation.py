@@ -1,19 +1,3 @@
-"""
-Pruebas unitarias de segmentation.py — U2
-
-Verifican:
-- segment_route: número correcto de tramos usando longitud geodésica (no EPSG:3857)
-- segment_route: interpolación lineal de elevación
-- segment_route: coordenadas reales de Cantabria (43°N) para detectar distorsión Mercator
-- segment_by_spans: segmentación por vanos reales con elevación
-- _interpolate_elevation_linear: casos límite
-
-Bug documentado (v2): la versión original usaba line_proj.length (EPSG:3857) para
-calcular n_segments, generando ~24% más tramos de los esperados a 43°N por la
-distorsión de la proyección Mercator. El fix usa haversine para n_segments y
-EPSG:3857 solo para interpolar posiciones a lo largo de la polilínea.
-"""
-
 import math
 import pytest
 from app.domain.segmentation import (
@@ -25,7 +9,7 @@ from app.domain.segmentation import (
 from app.domain.value_objects import GeoPoint
 
 
-# ── Coordenadas de referencia ────────────────────────────────────────────────
+# Coordenadas de referencia
 # Línea Este-Oeste en Asturias (43°N) de ~10 km aproximados
 # Oviedo área: 43.36°N, -5.85°E / -5.75°E
 COORD_OVIEDO_W = {"lat": 43.36, "lon": -5.85}
@@ -45,7 +29,7 @@ APOYOS_REALES = [
 ]
 
 
-# ── U2.0 — _geodesic_length_m ────────────────────────────────────────────────
+# U2.0 — _geodesic_length_m
 
 class TestGeodesicLength:
 
@@ -53,11 +37,11 @@ class TestGeodesicLength:
         """Línea E-O a 43°N debe medir ~8 km geodésicos."""
         coords = [COORD_OVIEDO_W, COORD_OVIEDO_E]
         length = _geodesic_length_m(coords)
-        # A 43°N, 0.11° de longitud ≈ 8 km (cos(43°) × 111km × 0.11 ≈ 8.9 km)
+        # A 43°N, 0.11° de longitud ≈ 8 km (cos(43°) x 111km x 0.11 ≈ 8.9 km)
         assert 8_000 < length < 10_000, f"Esperado ~8-10 km, obtenido {length:.0f} m"
 
     def test_longitud_ns_aprox_11km(self):
-        """Línea N-S debe medir ~11 km (111 km/grado × 0.1 grado)."""
+        """Línea N-S debe medir ~11 km (111 km/grado x 0.1 grado)."""
         coords = [COORD_N, COORD_S]
         length = _geodesic_length_m(coords)
         assert 10_000 < length < 12_000, f"Esperado ~11 km, obtenido {length:.0f} m"
@@ -78,12 +62,12 @@ class TestGeodesicLength:
         mercator = line_3857.length
 
         ratio = mercator / geodesic
-        # A 43°N la distorsión es 1/cos(43°) ≈ 1.367 — al menos 1.3
+        # A 43°N la distorsión es al menos 1.3
         assert ratio > 1.3, f"Distorsión esperada > 1.3, obtenida {ratio:.3f}"
         assert ratio < 1.5, f"Distorsión demasiado alta: {ratio:.3f}"
 
 
-# ── U2.1 — segment_route ────────────────────────────────────────────────────
+# U2.1 — segment_route
 
 class TestSegmentRoute:
 
@@ -118,7 +102,7 @@ class TestSegmentRoute:
 
         assert len(segs) == n_correcto
         assert len(segs) != n_bug, (
-            "El bug de Mercator no habría afectado a esta línea — "
+            "El bug de Mercator no habría afectado a esta línea, "
             "elige coordenadas con mayor distorsión"
         )
 
@@ -221,7 +205,7 @@ class TestSegmentRoute:
         assert all(s.length_km > 0 for s in segs)
 
 
-# ── U2.2 — segment_by_spans ─────────────────────────────────────────────────
+# U2.2 — segment_by_spans
 
 class TestSegmentBySpans:
 
@@ -288,7 +272,7 @@ class TestSegmentBySpans:
             assert abs(s.end_point.lon - APOYOS_REALES[i + 1]["lon"]) < 1e-5
 
 
-# ── U2.3 — _interpolate_elevation_linear ────────────────────────────────────
+# U2.3 — _interpolate_elevation_linear
 
 class TestInterpolateElevation:
 
@@ -310,7 +294,7 @@ class TestInterpolateElevation:
         assert _interpolate_elevation_linear(coords, mid) == 250.0
 
     def test_punto_medio_interpola_entre_extremos(self):
-        """Punto medio entre [100m, 200m] debe dar ~150m."""
+        """Punto medio entre [100m, 200m] debe dar entorno a 150m."""
         from app.domain.segmentation import _interpolate_elevation_linear
         coords = [
             {"lat": 43.36, "lon": -5.85, "elevation_m": 100.0},
@@ -318,7 +302,7 @@ class TestInterpolateElevation:
         ]
         mid = GeoPoint(lat=43.36, lon=-5.795)  # punto medio exacto
         result = _interpolate_elevation_linear(coords, mid)
-        assert 130.0 < result < 170.0, f"Esperado ~150m, obtenido {result}m"
+        assert 130.0 < result < 170.0, f"Esperado entorno a 150m, obtenido {result}m"
 
     def test_punto_cerca_del_inicio_tiende_a_elevacion_inicial(self):
         """Punto cerca del inicio debe dar elevación próxima a la del inicio."""
@@ -335,9 +319,9 @@ class TestInterpolateElevation:
         """Los puntos con elevation_m=0 se tratan como sin elevación."""
         from app.domain.segmentation import _interpolate_elevation_linear
         coords = [
-            {"lat": 43.36, "lon": -5.85, "elevation_m": 0.0},  # ignorado
+            {"lat": 43.36, "lon": -5.85, "elevation_m": 0.0}, 
             {"lat": 43.36, "lon": -5.74, "elevation_m": 300.0},
         ]
         mid = GeoPoint(lat=43.36, lon=-5.795)
         result = _interpolate_elevation_linear(coords, mid)
-        assert result == 300.0  # solo hay un punto válido → devuelve ese
+        assert result == 300.0  # solo hay un punto válido -> devuelve ese

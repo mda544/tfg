@@ -1,17 +1,3 @@
-"""
-Pruebas unitarias de IEEE738Calculator.
-
-Se verifican propiedades físicas del modelo térmico estacionario que deben
-cumplirse siempre, independientemente del conductor o las condiciones concretas.
-
-Valor de referencia: ejemplo página 45 IEEE 738-2012, conductor DRAKE 26/7 ACSR.
-  TR  = 992.892 A  (NSELECT=2, TCDR=100°C, TAMB=40°C, VWIND=0.61 m/s,
-                    LAT=43°, Z1=45°, SUN_TIME=12h, NDAY=161)
-  QS  = 13.937 W/m
-  QC  = 82.099 W/m
-  QR  = 24.424 W/m
-"""
-
 import pytest
 from app.domain.thermal_model import IEEE738Calculator, SEASON_REPRESENTATIVE_DAY
 from app.domain.entities import Conductor
@@ -23,7 +9,7 @@ QR_PG45 = 24.424  # Calor radiativo de referencia W/m
 TOL_W = 2.0  # Tolerancia ± 2 W/m
 
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
+# Fixtures
 
 
 @pytest.fixture(scope="module")
@@ -71,7 +57,7 @@ def meteo(
     )
 
 
-# ── U1.1a — Referencia IEEE 738-2012 página 45 ───────────────────────────────
+# U1.1a — Referencia IEEE 738 página 45
 
 
 def test_ieee738_pg45_calor_solar(calculator, drake):
@@ -100,7 +86,7 @@ def test_ieee738_pg45_calor_solar(calculator, drake):
     ), f"QS {rating.qs_wm:.3f} W/m fuera del rango [{QS_PG45 - TOL_W:.1f}, {QS_PG45 + TOL_W:.1f}] W/m"
 
 
-# ── U1.1b — Resultado válido en condiciones de verano ─────────────────────────
+# U1.1b — Resultado válido en condiciones de verano
 
 
 def test_ampacity_positiva_verano(calculator, la280):
@@ -118,7 +104,7 @@ def test_ampacity_positiva_verano(calculator, la280):
     assert rating.r_tc_ohm_m > 0
 
 
-# ── U1.1c — Invierno da mayor ampacidad que verano ────────────────────────────
+# U1.1c — Invierno da mayor ampacidad que verano
 
 
 def test_invierno_mayor_ampacidad_que_verano(calculator, la280):
@@ -139,7 +125,7 @@ def test_invierno_mayor_ampacidad_que_verano(calculator, la280):
     assert rating_invierno.ampacity > rating_verano.ampacity
 
 
-# ── U1.1d — conv_mode natural cuando viento < 0.5 m/s ────────────────────────
+# U1.1d — conv_mode natural cuando viento < 0.5 m/s
 
 
 def test_conv_mode_natural(calculator, la280):
@@ -153,7 +139,7 @@ def test_conv_mode_natural(calculator, la280):
     assert rating.conv_mode == "natural"
 
 
-# ── U1.1e — conv_mode forced_low cuando 0.5 <= viento < 2.0 m/s ──────────────
+# U1.1e — conv_mode forced_low cuando 0.5 <= viento < 2.0 m/s
 
 
 def test_conv_mode_forced_low(calculator, la280):
@@ -167,7 +153,7 @@ def test_conv_mode_forced_low(calculator, la280):
     assert rating.conv_mode == "forced_low"
 
 
-# ── U1.1f — conv_mode forced_high cuando viento >= 2.0 m/s ───────────────────
+# U1.1f — conv_mode forced_high cuando viento >= 2.0 m/s
 
 
 def test_conv_mode_forced_high(calculator, la280):
@@ -181,7 +167,7 @@ def test_conv_mode_forced_high(calculator, la280):
     assert rating.conv_mode == "forced_high"
 
 
-# ── U1.1g — Mayor altitud da menor ampacidad ─────────────────────────────────
+# U1.1g — Mayor altitud da menor ampacidad
 
 
 def test_mayor_altitud_menor_ampacidad(calculator, la280):
@@ -204,7 +190,7 @@ def test_mayor_altitud_menor_ampacidad(calculator, la280):
     assert rating_0m.ampacity > rating_1000m.ampacity
 
 
-# ── U1.1h — Determinismo: mismo input → mismo resultado ──────────────────────
+# U1.1h — Determinismo: mismo input -> mismo resultado
 
 
 def test_determinismo(calculator, la280):
@@ -224,14 +210,14 @@ def test_determinismo(calculator, la280):
     assert rating1.qc_wm == rating2.qc_wm
 
 
-# ── U1.1i — Días representativos distintos por estación ──────────────────────
+# U1.1i — Días representativos distintos por estación
 
 
 def test_season_representative_day_distintos(calculator, la280):
     assert SEASON_REPRESENTATIVE_DAY["verano"] == 172
     assert SEASON_REPRESENTATIVE_DAY["otono"] == 264
     assert SEASON_REPRESENTATIVE_DAY["invierno"] == 355
-    assert SEASON_REPRESENTATIVE_DAY["primavera"] == 80
+    assert SEASON_REPRESENTATIVE_DAY["primavera"] == 151
 
     rating_verano = calculator.calcular(
         la280,
@@ -250,7 +236,7 @@ def test_season_representative_day_distintos(calculator, la280):
     assert rating_verano.ampacity != rating_invierno.ampacity
 
 
-# ── U1.1j — Más viento → más ampacidad ───────────────────────────────────────
+# U1.1j — Más viento -> más ampacidad
 
 
 def test_mas_viento_mas_ampacidad(calculator, la280):
@@ -271,7 +257,7 @@ def test_mas_viento_mas_ampacidad(calculator, la280):
     assert rating_alto.ampacity > rating_bajo.ampacity
 
 
-# ── U1.1k — Mayor temperatura ambiente → menor ampacidad ─────────────────────
+# U1.1k — Mayor temperatura ambiente -> menor ampacidad
 
 
 def test_mayor_temperatura_menor_ampacidad(calculator, la280):

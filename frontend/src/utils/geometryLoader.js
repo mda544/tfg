@@ -60,7 +60,7 @@ function featureToInternalFormat(feature) {
           ...(feature.properties ?? {}),
           fuente: "geojson",
           n_apoyos: coords.length,
-          puntos_singulares: buildSingularPoints(coords),
+          support_metadata: buildSingularPoints(coords),
         },
       };
     }
@@ -73,7 +73,7 @@ function featureToInternalFormat(feature) {
           ...(feature.properties ?? {}),
           fuente: "geojson",
           n_apoyos: coords.length,
-          puntos_singulares: buildSingularPoints(coords),
+          support_metadata: buildSingularPoints(coords),
         },
       };
     }

@@ -6,11 +6,13 @@ from app.domain.entities import Conductor
 from app.domain.value_objects import PointMeteoConditions, SegmentRating
 from app.domain.types import ConvMode, Season
 
+# Día representativo por estación, usado únicamente para la geometría
+# de incidencia solar del modelo térmico (latitud + día del año + hora)
 SEASON_REPRESENTATIVE_DAY: dict[Season, int] = {
     "verano": 172,  # June 21   — solsticio de verano (dia mas largo)
     "otono": 264,  # Sept 21   — equinocio de otoño
     "invierno": 355,  # Dec 21    — solsticio de invierno (dia mas corto)
-    "primavera": 80,  # March 21  — equinocio de primavera
+    "primavera": 151,  # May 31   — extremo del periodo BOE (abril-mayo)
 }
 
 # Hora con la radiacion mas alta

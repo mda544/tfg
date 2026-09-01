@@ -9,7 +9,7 @@ class TestUsernameValidation:
 
     def test_username_valido(self):
         """No debe lanzar excepción con un username correcto."""
-        _validate_credentials("testUser01", "TestPass1!")  # no debe fallar
+        _validate_credentials("testUser01", "TestPass1!")
 
     def test_username_minimo_valido(self):
         """Exactamente 3 caracteres es el mínimo aceptado."""

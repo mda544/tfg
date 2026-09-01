@@ -3,11 +3,12 @@ from app.domain.types import Season
 from app.domain.entities import SeasonalPercentiles
 from app.domain.geo import circular_mean
 
+# Periodos según el anexo del BOE-A-2022-15354 (Real Decreto-ley 17/2022),
 SEASON_MONTHS: dict[Season, list[int]] = {
+    "primavera": [4, 5],
     "verano": [6, 7, 8],
-    "otono": [9, 10, 11],
-    "invierno": [12, 1, 2],
-    "primavera": [3, 4, 5],
+    "otono": [9, 10],
+    "invierno": [11, 12, 1, 2, 3],
 }
 
 

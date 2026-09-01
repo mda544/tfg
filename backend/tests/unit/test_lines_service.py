@@ -1,20 +1,7 @@
-"""
-Pruebas unitarias de las funciones puras de lines_service.
-
-_calc_length_km y _set_bbox no dependen de ningún repositorio — operan
-directamente sobre una lista de GeoPoint. Se prueban de forma aislada,
-sin mocks ni base de datos, como pruebas de dominio/aplicación pura.
-
-Coordenadas de referencia: Asturias (43°N), consistentes con el resto
-del proyecto (test_segmentation.py, test_geo.py).
-"""
-
 import pytest
 from app.services.lines_service import _calc_length_km, _set_bbox
 from app.domain.value_objects import GeoPoint
 from app.domain.entities import Line
-
-# _calc_length_km
 
 
 class TestCalcLengthKm:
@@ -66,8 +53,6 @@ class TestCalcLengthKm:
         assert 0.1 < length < 0.3  # entre 100 y 300 metros
 
 
-# _set_bbox
-
 
 class TestSetBbox:
 
@@ -88,7 +73,7 @@ class TestSetBbox:
 
     def test_bbox_con_punto_intermedio_fuera_de_rango(self):
         """El bbox debe capturar el mínimo/máximo real, no solo los
-        extremos de la lista — un punto intermedio puede ser el más
+        extremos de la lista. Un punto intermedio puede ser el más
         al norte/sur/este/oeste."""
         coords = [
             GeoPoint(lat=43.30, lon=-6.00),
