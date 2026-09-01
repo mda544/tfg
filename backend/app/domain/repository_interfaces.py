@@ -1,14 +1,3 @@
-"""
-Interfaces (Protocols) de los repositorios — viven en el dominio, no en
-infraestructura. Los servicios dependen de estas abstracciones, no de las
-implementaciones concretas con SQLAlchemy. Esto permite sustituir cualquier
-repositorio por un mock en los tests sin usar unittest.mock.patch sobre
-rutas de import.
-
-Protocol (PEP 544) se usa en vez de ABC porque no requiere herencia explícita —
-LinesRepository ya es compatible con ILinesRepository sin tocar su definición,
-siempre que implemente los mismos métodos con las mismas firmas.
-"""
 from typing import Protocol, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.entities import Line, Conductor, StudyCase, Calculation, SeasonalPercentiles
